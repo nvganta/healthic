@@ -3,8 +3,10 @@
 import { useState, useRef, useEffect } from 'react';
 
 interface Message {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
+  toolCalls?: Array<{ name: string; args: unknown }>;
 }
 
 export default function Chat() {
@@ -27,8 +29,9 @@ export default function Chat() {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
+    const userMsgId = `user-${Date.now()}`;
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
+    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userMessage }]);
     setIsLoading(true);
 
     try {
@@ -46,7 +49,12 @@ export default function Chat() {
       if (response.ok) {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: data.response || 'No response' },
+          {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: data.response || 'No response',
+            toolCalls: data.toolCalls,
+          },
         ]);
         if (data.sessionId) {
           setSessionId(data.sessionId);
@@ -54,13 +62,13 @@ export default function Chat() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: `Error: ${data.error || 'Something went wrong'}` },
+          { id: `error-${Date.now()}`, role: 'assistant', content: `Error: ${data.error || 'Something went wrong'}` },
         ]);
       }
-    } catch (error) {
+    } catch {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Failed to connect to the server.' },
+        { id: `error-${Date.now()}`, role: 'assistant', content: 'Failed to connect to the server.' },
       ]);
     } finally {
       setIsLoading(false);
@@ -102,9 +110,9 @@ export default function Chat() {
           </div>
         )}
 
-        {messages.map((message, index) => (
+        {messages.map((message) => (
           <div
-            key={index}
+            key={message.id}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
@@ -115,17 +123,29 @@ export default function Chat() {
               }`}
             >
               <p className="whitespace-pre-wrap">{message.content}</p>
+              {message.toolCalls && message.toolCalls.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-gray-500">
+                  {message.toolCalls.map((tool, i) => (
+                    <span key={i} className="inline-block bg-gray-200 rounded px-2 py-0.5 mr-1">
+                      {tool.name}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl px-4 py-2">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+            <div className="bg-gray-100 rounded-2xl px-4 py-3">
+              <div className="flex items-center space-x-2">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:0.1s]" />
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                </div>
+                <span className="text-sm text-gray-500">Thinking...</span>
               </div>
             </div>
           </div>

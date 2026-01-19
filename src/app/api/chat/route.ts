@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { InMemoryRunner, getFunctionCalls } from '@google/adk';
 import { createUserContent } from '@google/genai';
+import { z } from 'zod';
 import { healthAgent } from '@/agent/health-agent';
 import { opik } from '@/lib/opik';
 
 const APP_NAME = 'healthic';
 const runner = new InMemoryRunner({ agent: healthAgent, appName: APP_NAME });
+
+// Input validation schema
+const chatRequestSchema = z.object({
+  message: z.string().min(1, 'Message is required').max(10000, 'Message too long'),
+  userId: z.string().min(1).max(100).default('default_user'),
+  sessionId: z.string().uuid().optional(),
+});
 
 export async function POST(request: NextRequest) {
   // Start Opik trace for this chat request
@@ -18,19 +26,24 @@ export async function POST(request: NextRequest) {
   });
 
   try {
-    const { message, userId = 'default_user', sessionId } = await request.json();
+    // Parse and validate request body
+    const body = await request.json();
+    const parseResult = chatRequestSchema.safeParse(body);
 
-    // Update trace with input
+    if (!parseResult.success) {
+      const errorMessage = parseResult.error.errors.map((e) => e.message).join(', ');
+      trace.update({ output: { error: errorMessage } });
+      trace.end();
+      await opik.flush();
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
+    }
+
+    const { message, userId, sessionId } = parseResult.data;
+
+    // Update trace with validated input
     trace.update({
       input: { message, userId, sessionId },
     });
-
-    if (!message) {
-      trace.update({ output: { error: 'Message is required' } });
-      trace.end();
-      await opik.flush();
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
-    }
 
     // Create or get session
     let session;
