@@ -4,7 +4,7 @@ import { sql } from '@/lib/db';
 
 // Helper to get or create user (for now using a default user)
 async function getOrCreateUser(userId: string = 'default_user') {
-  const existingUser = await sql`SELECT * FROM users WHERE id = ${userId}::uuid`;
+  const existingUser = await sql`SELECT * FROM users WHERE email = ${userId}`;
   if (existingUser.length > 0) {
     return existingUser[0];
   }
