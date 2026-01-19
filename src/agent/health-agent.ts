@@ -159,7 +159,8 @@ const getRecentActivityTool = new FunctionTool({
         activities = await sql`
           SELECT * FROM daily_logs 
           WHERE user_id = ${user.id} 
-            AND log_date >= CURRENT_DATE - ${days}::integer
+          WHERE user_id = ${user.id} 
+            AND log_date >= CURRENT_DATE - INTERVAL '${days} days'
           ORDER BY log_date DESC, created_at DESC
         `;
       } else {
