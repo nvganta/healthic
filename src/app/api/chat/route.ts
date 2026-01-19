@@ -45,6 +45,15 @@ export async function POST(request: NextRequest) {
     const toolCalls: Array<{ name: string | undefined; args: unknown }> = [];
 
     for await (const event of events) {
+      // Check for API errors
+      if ('errorCode' in event && event.errorCode) {
+        console.error('API Error:', event.errorCode, event.errorMessage);
+        return NextResponse.json(
+          { error: 'API error', code: event.errorCode, details: event.errorMessage },
+          { status: 429 }
+        );
+      }
+
       // Track tool calls for observability
       const calls = getFunctionCalls(event);
       for (const call of calls) {
@@ -56,9 +65,13 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (isFinalResponse(event)) {
-        // Extract text from the final response
-        responseText = stringifyContent(event);
+      // Try to extract text from any event with content
+      if (event.content?.parts) {
+        for (const part of event.content.parts) {
+          if ('text' in part && part.text) {
+            responseText += part.text;
+          }
+        }
       }
     }
 

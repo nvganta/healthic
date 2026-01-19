@@ -26,7 +26,7 @@ const logActivityTool = new FunctionTool({
   description: 'Log a daily activity like exercise, meal, sleep, mood, or weight. Use this when the user reports something they did.',
   parameters: z.object({
     logType: z.enum(['exercise', 'meal', 'sleep', 'mood', 'weight', 'stress']).describe('Type of activity being logged'),
-    data: z.record(z.unknown()).describe('Activity data - structure depends on log type'),
+    value: z.string().describe('The main value or description of the activity (e.g., "30 minutes running", "7 hours", "150 lbs")'),
     notes: z.string().optional().describe('Additional notes from the user'),
   }),
   execute: async (params) => {
