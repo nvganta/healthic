@@ -29,7 +29,7 @@ export default function Chat() {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
-    const userMsgId = `user-${Date.now()}`;
+    const userMsgId = crypto.randomUUID();
     setInput('');
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userMessage }]);
     setIsLoading(true);
@@ -50,7 +50,7 @@ export default function Chat() {
         setMessages((prev) => [
           ...prev,
           {
-            id: `assistant-${Date.now()}`,
+            id: crypto.randomUUID(),
             role: 'assistant',
             content: data.response || 'No response',
             toolCalls: data.toolCalls,
@@ -62,13 +62,13 @@ export default function Chat() {
       } else {
         setMessages((prev) => [
           ...prev,
-          { id: `error-${Date.now()}`, role: 'assistant', content: `Error: ${data.error || 'Something went wrong'}` },
+          { id: crypto.randomUUID(), role: 'assistant', content: `Error: ${data.error || 'Something went wrong'}` },
         ]);
       }
     } catch {
       setMessages((prev) => [
         ...prev,
-        { id: `error-${Date.now()}`, role: 'assistant', content: 'Failed to connect to the server.' },
+        { id: crypto.randomUUID(), role: 'assistant', content: 'Failed to connect to the server.' },
       ]);
     } finally {
       setIsLoading(false);
