@@ -1,5 +1,28 @@
 import { LlmAgent, FunctionTool } from '@google/adk';
 import { z } from 'zod';
+import { sql } from '@/lib/db';
+
+// Helper to get or create user (for now using a default user)
+async function getOrCreateUser(userId: string = 'default_user') {
+  const existingUser = await sql`SELECT * FROM users WHERE email = ${userId}`;
+  if (existingUser.length > 0) {
+    return existingUser[0];
+  }
+  
+  // Try to find by a simpler approach - use email as identifier for demo
+  const byEmail = await sql`SELECT * FROM users WHERE email = ${userId}`;
+  if (byEmail.length > 0) {
+    return byEmail[0];
+  }
+  
+  // Create new user
+  const newUser = await sql`
+    INSERT INTO users (email, name) 
+    VALUES (${userId}, 'Demo User')
+    RETURNING *
+  `;
+  return newUser[0];
+}
 
 // Tool to save a user's goal
 const saveGoalTool = new FunctionTool({
@@ -14,9 +37,33 @@ const saveGoalTool = new FunctionTool({
     targetDate: z.string().optional().describe('Target date in YYYY-MM-DD format'),
   }),
   execute: async (params) => {
-    // This will be connected to the database later
-    console.log('Saving goal:', params);
-    return { success: true, message: `Goal "${params.title}" has been saved. I'll help you break this down into actionable steps.` };
+    try {
+      const user = await getOrCreateUser();
+      
+      const result = await sql`
+        INSERT INTO goals (user_id, title, description, goal_type, target_value, target_unit, target_date)
+        VALUES (
+          ${user.id},
+          ${params.title},
+          ${params.description},
+          ${params.goalType},
+          ${params.targetValue || null},
+          ${params.targetUnit || null},
+          ${params.targetDate || null}
+        )
+        RETURNING *
+      `;
+      
+      console.log('Goal saved:', result[0]);
+      return { 
+        success: true, 
+        goalId: result[0].id,
+        message: `Goal "${params.title}" has been saved. I'll help you break this down into actionable steps.` 
+      };
+    } catch (error) {
+      console.error('Error saving goal:', error);
+      return { success: false, message: 'Failed to save goal. Please try again.' };
+    }
   },
 });
 
@@ -30,8 +77,27 @@ const logActivityTool = new FunctionTool({
     notes: z.string().optional().describe('Additional notes from the user'),
   }),
   execute: async (params) => {
-    console.log('Logging activity:', params);
-    return { success: true, message: 'Activity logged successfully.' };
+    try {
+      const user = await getOrCreateUser();
+      
+      const result = await sql`
+        INSERT INTO daily_logs (user_id, log_date, log_type, data, notes)
+        VALUES (
+          ${user.id},
+          CURRENT_DATE,
+          ${params.logType},
+          ${JSON.stringify({ value: params.value })},
+          ${params.notes || null}
+        )
+        RETURNING *
+      `;
+      
+      console.log('Activity logged:', result[0]);
+      return { success: true, logId: result[0].id, message: 'Activity logged successfully.' };
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      return { success: false, message: 'Failed to log activity. Please try again.' };
+    }
   },
 });
 
@@ -41,8 +107,36 @@ const getGoalsTool = new FunctionTool({
   description: 'Retrieve the user\'s current active goals. Use this to understand what the user is working towards.',
   parameters: z.object({}),
   execute: async () => {
-    // This will be connected to the database later
-    return { goals: [], message: 'No goals set yet. Would you like to set a health resolution?' };
+    try {
+      const user = await getOrCreateUser();
+      
+      const goals = await sql`
+        SELECT * FROM goals 
+        WHERE user_id = ${user.id} AND status = 'active'
+        ORDER BY created_at DESC
+      `;
+      
+      if (goals.length === 0) {
+        return { goals: [], message: 'No goals set yet. Would you like to set a health resolution?' };
+      }
+      
+      return { 
+        goals: goals.map(g => ({
+          id: g.id,
+          title: g.title,
+          description: g.description,
+          goalType: g.goal_type,
+          targetValue: g.target_value,
+          targetUnit: g.target_unit,
+          targetDate: g.target_date,
+          createdAt: g.created_at
+        })),
+        message: `Found ${goals.length} active goal(s).`
+      };
+    } catch (error) {
+      console.error('Error getting goals:', error);
+      return { goals: [], message: 'Failed to retrieve goals.' };
+    }
   },
 });
 
@@ -55,8 +149,48 @@ const getRecentActivityTool = new FunctionTool({
     logType: z.enum(['exercise', 'meal', 'sleep', 'mood', 'weight', 'stress', 'all']).default('all').describe('Type of activity to retrieve'),
   }),
   execute: async (params) => {
-    console.log('Getting recent activity:', params);
-    return { activities: [], message: 'No recent activity logged.' };
+    try {
+      const user = await getOrCreateUser();
+      const days = params.days || 7;
+      const logType = params.logType || 'all';
+      
+      let activities;
+      if (logType === 'all') {
+        activities = await sql`
+          SELECT * FROM daily_logs 
+          WHERE user_id = ${user.id} 
+          WHERE user_id = ${user.id} 
+            AND log_date >= CURRENT_DATE - INTERVAL '${days} days'
+          ORDER BY log_date DESC, created_at DESC
+        `;
+      } else {
+        activities = await sql`
+          SELECT * FROM daily_logs 
+          WHERE user_id = ${user.id} 
+            AND log_type = ${logType}
+            AND log_date >= CURRENT_DATE - INTERVAL '${days} days'
+          ORDER BY log_date DESC, created_at DESC
+        `;
+      }
+      
+      if (activities.length === 0) {
+        return { activities: [], message: 'No recent activity logged.' };
+      }
+      
+      return { 
+        activities: activities.map(a => ({
+          id: a.id,
+          date: a.log_date,
+          type: a.log_type,
+          data: a.data,
+          notes: a.notes
+        })),
+        message: `Found ${activities.length} activity log(s) from the last ${days} days.`
+      };
+    } catch (error) {
+      console.error('Error getting recent activity:', error);
+      return { activities: [], message: 'Failed to retrieve activity logs.' };
+    }
   },
 });
 
