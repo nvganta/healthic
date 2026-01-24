@@ -33,8 +33,9 @@ function analyzeDayOfWeekPatterns(logs: ActivityLog[]): DetectedPattern[] {
   const exerciseLogs = logs.filter(l => l.log_type === 'exercise');
 
   exerciseLogs.forEach(log => {
-    const date = new Date(log.log_date);
-    const dayName = dayNames[date.getDay()];
+    // Parse date as UTC to ensure consistent day-of-week detection across timezones
+    const date = new Date(log.log_date + 'T00:00:00Z');
+    const dayName = dayNames[date.getUTCDay()];
     exerciseByDay[dayName]++;
   });
 
