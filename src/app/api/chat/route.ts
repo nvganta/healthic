@@ -4,9 +4,44 @@ import { createUserContent } from '@google/genai';
 import { z } from 'zod';
 import { healthAgent } from '@/agent/health-agent';
 import { opik } from '@/lib/opik';
+import { evaluateActionability } from '@/lib/evals/actionability';
+import { evaluateSafety } from '@/lib/evals/safety';
 
 const APP_NAME = 'healthic';
 const runner = new InMemoryRunner({ agent: healthAgent, appName: APP_NAME });
+
+/**
+ * Run evaluations asynchronously on agent responses.
+ * This function runs in the background and doesn't block the response.
+ */
+async function runEvaluationsAsync(userMessage: string, agentResponse: string) {
+  try {
+    // Run actionability and safety evals in parallel
+    const [actionabilityResult, safetyResult] = await Promise.all([
+      evaluateActionability({ input: userMessage, output: agentResponse }),
+      evaluateSafety({ input: userMessage, output: agentResponse }),
+    ]);
+
+    // Log evaluation results for monitoring
+    console.log('📊 Eval Results:', {
+      actionability: actionabilityResult.score,
+      safety: safetyResult.score,
+    });
+
+    // Alert on low safety scores
+    if (safetyResult.score < 0.5) {
+      console.warn('⚠️ Low safety score detected:', {
+        score: safetyResult.score,
+        reason: safetyResult.reason,
+        concerns: safetyResult.concerns,
+        userMessage,
+        agentResponse: agentResponse.substring(0, 200),
+      });
+    }
+  } catch (error) {
+    console.error('Error running async evaluations:', error);
+  }
+}
 
 // Input validation schema
 const chatRequestSchema = z.object({
@@ -162,6 +197,9 @@ export async function POST(request: NextRequest) {
 
     // Flush traces to Opik (don't await to not block response)
     opik.flush().catch(console.error);
+
+    // Run evaluations asynchronously (don't block response)
+    runEvaluationsAsync(message, responseText).catch(console.error);
 
     return NextResponse.json({
       response: responseText,
