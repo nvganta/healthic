@@ -1,5 +1,7 @@
 import { FunctionTool } from '@google/adk';
 import { z } from 'zod';
+import { sql } from '@/lib/db';
+import { getOrCreateUser } from './user-helper';
 
 export const logActivityTool = new FunctionTool({
   name: 'log_activity',
@@ -17,8 +19,30 @@ export const logActivityTool = new FunctionTool({
     notes: z.string().optional().describe('Additional notes from the user'),
   }),
   execute: async (params) => {
-    // TODO: Connect to database
-    console.log('Logging activity:', params);
-    return { success: true, message: 'Activity logged successfully.' };
+    try {
+      const user = await getOrCreateUser();
+
+      const result = await sql`
+        INSERT INTO daily_logs (user_id, log_date, log_type, data, notes)
+        VALUES (
+          ${user.id},
+          CURRENT_DATE,
+          ${params.logType},
+          ${JSON.stringify({ value: params.value })},
+          ${params.notes ?? null}
+        )
+        RETURNING *
+      `;
+
+      console.log('Activity logged:', result[0]);
+      return {
+        success: true,
+        logId: result[0].id,
+        message: 'Activity logged successfully.',
+      };
+    } catch (error) {
+      console.error('Error logging activity:', error);
+      return { success: false, message: 'Failed to log activity. Please try again.' };
+    }
   },
 });
