@@ -79,15 +79,17 @@ function analyzeSleepMoodPatterns(logs: ActivityLog[]): DetectedPattern[] {
 
       if (isBadSleep) {
         badSleepCount++;
-        // Check mood on same day or next day
-        const sleepDate = new Date(sleepLog.log_date);
+        // Check mood on same day or next day (using UTC for consistent comparison)
+        const sleepDate = new Date(sleepLog.log_date + 'T00:00:00Z');
         const nextDay = new Date(sleepDate);
-        nextDay.setDate(nextDay.getDate() + 1);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+        const sleepDateStr = sleepDate.toISOString().split('T')[0];
+        const nextDayStr = nextDay.toISOString().split('T')[0];
 
         const relatedMood = moodLogs.find(m => {
-          const moodDate = new Date(m.log_date);
-          return moodDate.toDateString() === sleepDate.toDateString() ||
-                 moodDate.toDateString() === nextDay.toDateString();
+          const moodDateStr = new Date(m.log_date + 'T00:00:00Z').toISOString().split('T')[0];
+          return moodDateStr === sleepDateStr || moodDateStr === nextDayStr;
         });
 
         if (relatedMood) {
@@ -206,17 +208,25 @@ Returns detected patterns that can inform personalized recommendations.`,
       // Save patterns to database if requested
       if (params.savePatterns && allPatterns.length > 0) {
         for (const pattern of allPatterns) {
-          await sql`
-            INSERT INTO patterns (user_id, pattern_type, description, confidence, evidence)
-            VALUES (
-              ${user.id},
-              ${pattern.type},
-              ${pattern.description},
-              ${pattern.confidence},
-              ${JSON.stringify({ evidence: pattern.evidence, suggestion: pattern.suggestion })}
-            )
-            ON CONFLICT DO NOTHING
+          // Check if pattern already exists to avoid duplicates
+          const existing = await sql`
+            SELECT id FROM patterns
+            WHERE user_id = ${user.id} AND pattern_type = ${pattern.type}
+            LIMIT 1
           `;
+
+          if (existing.length === 0) {
+            await sql`
+              INSERT INTO patterns (user_id, pattern_type, description, confidence, evidence)
+              VALUES (
+                ${user.id},
+                ${pattern.type},
+                ${pattern.description},
+                ${pattern.confidence},
+                ${JSON.stringify({ evidence: pattern.evidence, suggestion: pattern.suggestion })}
+              )
+            `;
+          }
         }
       }
 
