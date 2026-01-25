@@ -3,6 +3,8 @@ import { InMemoryRunner, getFunctionCalls } from '@google/adk';
 import { createUserContent } from '@google/genai';
 import { z } from 'zod';
 import { healthAgent } from '@/agent/health-agent';
+import { getOrCreateConversation, saveMessage } from '@/agent/tools';
+import { getOrCreateUser } from '@/agent/tools/user-helper';
 import { opik } from '@/lib/opik';
 import { evaluateActionability } from '@/lib/evals/actionability';
 import { evaluateSafety } from '@/lib/evals/safety';
@@ -48,6 +50,7 @@ const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message is required').max(10000, 'Message too long'),
   userId: z.string().min(1).max(100).default('default_user'),
   sessionId: z.string().uuid().optional(),
+  conversationId: z.string().uuid().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -73,12 +76,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
-    const { message, userId, sessionId } = parseResult.data;
+    const { message, userId, sessionId, conversationId } = parseResult.data;
 
     // Update trace with validated input
     trace.update({
-      input: { message, userId, sessionId },
+      input: { message, userId, sessionId, conversationId },
     });
+
+    // Get or create user and conversation for persistence
+    const user = await getOrCreateUser();
+    const conversation = await getOrCreateConversation(user.id, conversationId);
+
+    // Save user message to database
+    await saveMessage(conversation.id, 'user', message);
 
     // Create or get session
     let session;
@@ -181,11 +191,17 @@ export async function POST(request: NextRequest) {
     });
     agentSpan.end();
 
+    // Save assistant response to database
+    await saveMessage(conversation.id, 'assistant', responseText, {
+      toolCalls: toolCalls.map(tc => tc.name),
+    });
+
     // End trace with final output
     trace.update({
       output: {
         response: responseText,
         sessionId: session.id,
+        conversationId: conversation.id,
         toolCallsCount: toolCalls.length,
       },
       metadata: {
@@ -204,6 +220,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       response: responseText,
       sessionId: session.id,
+      conversationId: conversation.id,
       toolCalls,
     });
   } catch (error) {

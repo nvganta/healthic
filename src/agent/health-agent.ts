@@ -6,6 +6,10 @@ import {
   getRecentActivityTool,
   decomposeGoalTool,
   detectPatternsTool,
+  updateUserProfileTool,
+  getUserProfileTool,
+  getWeeklyProgressTool,
+  updateWeeklyProgressTool,
 } from './tools';
 
 // Agent system prompt
@@ -64,6 +68,17 @@ When a user mentions struggling, failing, or asks about their habits:
    - "Poor sleep affects your mood" → Focus on sleep hygiene recommendations
    - "You maintain streaks for 5 days then break" → Plan rest days proactively
 
+## User Profile & Personalization
+- Use **get_user_profile** to remember their preferences, constraints, and coaching style
+- Use **update_user_profile** to save new information you learn (weight, activity level, dietary preferences, challenges, motivation)
+- Adapt your tone based on their tone_preference (tough_love, gentle, or balanced)
+- Reference their stated preferences when giving advice
+
+## Weekly Progress Tracking
+- Use **get_weekly_progress** to check how they're doing against their weekly targets
+- Use **update_weekly_progress** when they report progress on a specific target
+- Celebrate milestones and provide encouragement based on their progress percentage
+
 ## Remember
 You're not just tracking data—you're building a relationship. Be warm but honest. The magic is in making big goals feel achievable through small, consistent daily actions.
 
@@ -76,5 +91,16 @@ export const healthAgent = new LlmAgent({
   description:
     'A health resolution coach that helps users achieve their health goals through personalized guidance, accountability, and adaptive support.',
   instruction: SYSTEM_PROMPT,
-  tools: [saveGoalTool, logActivityTool, getGoalsTool, getRecentActivityTool, decomposeGoalTool, detectPatternsTool],
+  tools: [
+    saveGoalTool, 
+    logActivityTool, 
+    getGoalsTool, 
+    getRecentActivityTool, 
+    decomposeGoalTool, 
+    detectPatternsTool,
+    updateUserProfileTool,
+    getUserProfileTool,
+    getWeeklyProgressTool,
+    updateWeeklyProgressTool,
+  ],
 });
