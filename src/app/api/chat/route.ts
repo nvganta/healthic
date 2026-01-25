@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Get or create user and conversation for persistence
-    const user = await getOrCreateUser();
+    const user = await getOrCreateUser(userId);
     const conversation = await getOrCreateConversation(user.id, conversationId);
 
     // Save user message to database
