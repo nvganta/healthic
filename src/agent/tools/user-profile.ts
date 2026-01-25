@@ -22,7 +22,7 @@ export const updateUserProfileTool = new FunctionTool({
       exercisePreferences: z.array(z.string()).optional().describe('Types of exercise they enjoy (e.g., walking, swimming, weights)'),
       challenges: z.array(z.string()).optional().describe('Known challenges or obstacles (e.g., "stress eating", "no time in mornings")'),
       motivation: z.string().optional().describe('What motivates them (e.g., "want to keep up with my kids")'),
-    }).describe('User preferences and profile data'),
+    }).optional().describe('User preferences and profile data'),
     tonePreference: z.enum(['tough_love', 'gentle', 'balanced']).optional().describe('Preferred coaching tone - tough_love for direct feedback, gentle for encouragement, balanced for mix'),
   }),
   execute: async (params) => {
@@ -31,7 +31,7 @@ export const updateUserProfileTool = new FunctionTool({
       
       // Merge new preferences with existing ones
       const existingPrefs = (user.preferences as Record<string, unknown>) || {};
-      const newPreferences = { ...existingPrefs, ...params.preferences };
+      const newPreferences = { ...existingPrefs, ...(params.preferences || {}) };
       
       await sql`
         UPDATE users 

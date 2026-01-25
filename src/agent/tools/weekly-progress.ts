@@ -85,18 +85,22 @@ export const updateWeeklyProgressTool = new FunctionTool({
   description: "Update the actual progress value for a weekly target. Use this when the user reports progress toward their weekly goal.",
   parameters: z.object({
     targetId: z.string().describe('The ID of the weekly target to update'),
-    actualValue: z.number().describe('The actual value achieved so far this week'),
+    actualValue: z.number().nonnegative().describe('The actual value achieved so far this week (must be non-negative)'),
     notes: z.string().optional().describe('Optional notes about the progress'),
   }),
   execute: async (params) => {
     try {
+      const user = await getOrCreateUser();
       const result = await sql`
-        UPDATE weekly_targets 
+        UPDATE weekly_targets wt
         SET 
           actual_value = ${params.actualValue},
-          notes = COALESCE(${params.notes || null}, notes)
-        WHERE id = ${params.targetId}::uuid
-        RETURNING *
+          notes = COALESCE(${params.notes || null}, wt.notes)
+        FROM goals g
+        WHERE wt.id = ${params.targetId}::uuid
+          AND wt.goal_id = g.id
+          AND g.user_id = ${user.id}
+        RETURNING wt.*
       `;
       
       if (result.length === 0) {
@@ -109,7 +113,9 @@ export const updateWeeklyProgressTool = new FunctionTool({
         : 0;
       
       let encouragement = '';
-      if (progress >= 100) {
+      if (progress < 0) {
+        encouragement = "Let's refocus and get back on track.";
+      } else if (progress >= 100) {
         encouragement = "🎉 Amazing! You've hit your weekly target!";
       } else if (progress >= 75) {
         encouragement = "💪 Great progress! You're almost there!";

@@ -6,10 +6,10 @@ import { sql } from '@/lib/db';
  */
 export async function getOrCreateConversation(userId: string, conversationId?: string) {
   if (conversationId) {
-    const existing = await sql`SELECT * FROM conversations WHERE id = ${conversationId}::uuid`;
+    const existing = await sql`SELECT * FROM conversations WHERE id = ${conversationId}::uuid AND user_id = ${userId}::uuid`;
     if (existing.length > 0) {
       // Update last_message_at timestamp
-      await sql`UPDATE conversations SET last_message_at = NOW() WHERE id = ${conversationId}::uuid`;
+      await sql`UPDATE conversations SET last_message_at = NOW() WHERE id = ${conversationId}::uuid AND user_id = ${userId}::uuid`;
       return existing[0];
     }
   }
