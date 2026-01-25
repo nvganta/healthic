@@ -113,9 +113,7 @@ export const updateWeeklyProgressTool = new FunctionTool({
         : 0;
       
       let encouragement = '';
-      if (progress < 0) {
-        encouragement = "Let's refocus and get back on track.";
-      } else if (progress >= 100) {
+      if (progress >= 100) {
         encouragement = "🎉 Amazing! You've hit your weekly target!";
       } else if (progress >= 75) {
         encouragement = "💪 Great progress! You're almost there!";
