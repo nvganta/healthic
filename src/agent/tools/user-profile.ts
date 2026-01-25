@@ -27,11 +27,23 @@ export const updateUserProfileTool = new FunctionTool({
   }),
   execute: async (params) => {
     try {
-      const user = await getOrCreateUser();
-      
-      // Merge new preferences with existing ones
+      // Merge new preferences with existing ones, handling arrays intelligently
       const existingPrefs = (user.preferences as Record<string, unknown>) || {};
-      const newPreferences = { ...existingPrefs, ...params.preferences };
+      const newPreferences = { ...existingPrefs };
+      
+      // Handle array fields specially - merge instead of replace
+      const arrayFields = ['dietaryPreferences', 'exercisePreferences', 'challenges'];
+      
+      for (const [key, value] of Object.entries(params.preferences)) {
+        if (arrayFields.includes(key) && Array.isArray(value)) {
+          // Merge arrays, avoiding duplicates
+          const existingArray = Array.isArray(existingPrefs[key]) ? existingPrefs[key] as string[] : [];
+          newPreferences[key] = [...new Set([...existingArray, ...value])];
+        } else {
+          // For non-array fields, replace as normal
+          newPreferences[key] = value;
+        }
+      }
       
       await sql`
         UPDATE users 
