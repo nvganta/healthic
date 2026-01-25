@@ -90,13 +90,17 @@ export const updateWeeklyProgressTool = new FunctionTool({
   }),
   execute: async (params) => {
     try {
+      const user = await getOrCreateUser();
       const result = await sql`
-        UPDATE weekly_targets 
+        UPDATE weekly_targets wt
         SET 
           actual_value = ${params.actualValue},
-          notes = COALESCE(${params.notes || null}, notes)
-        WHERE id = ${params.targetId}::uuid
-        RETURNING *
+          notes = COALESCE(${params.notes || null}, wt.notes)
+        FROM goals g
+        WHERE wt.id = ${params.targetId}::uuid
+          AND wt.goal_id = g.id
+          AND g.user_id = ${user.id}
+        RETURNING wt.*
       `;
       
       if (result.length === 0) {
