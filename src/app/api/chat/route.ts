@@ -3,7 +3,7 @@ import { InMemoryRunner, getFunctionCalls } from '@google/adk';
 import { createUserContent } from '@google/genai';
 import { z } from 'zod';
 import { healthAgent } from '@/agent/health-agent';
-import { getOrCreateConversation, saveMessage } from '@/agent/tools';
+import { getOrCreateConversation, saveMessage, getConversationHistory } from '@/agent/tools';
 import { getOrCreateUser } from '@/agent/tools/user-helper';
 import { opik } from '@/lib/opik';
 import { evaluateActionability } from '@/lib/evals/actionability';
@@ -87,6 +87,9 @@ export async function POST(request: NextRequest) {
     const user = await getOrCreateUser(userId);
     const conversation = await getOrCreateConversation(user.id, conversationId);
 
+    // Load conversation history for context
+    const conversationHistory = await getConversationHistory(conversation.id, 20);
+    
     // Save user message to database
     await saveMessage(conversation.id, 'user', message);
 
@@ -107,8 +110,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create user content
-    const userContent = createUserContent(message);
+    // Build context with conversation history for the agent
+    const historyContext = conversationHistory.length > 0 
+      ? `\n\n[Previous conversation context - ${conversationHistory.length} messages]:\n` +
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        conversationHistory.map((m: Record<string, any>) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n') +
+        '\n[End of previous context]\n\nUser: '
+      : '';
+
+    // Create user content with history context prepended for new sessions
+    const messageWithContext = session && conversationHistory.length > 0 
+      ? historyContext + message 
+      : message;
+    const userContent = createUserContent(messageWithContext);
 
     // Create span for agent execution
     const agentSpan = trace.span({

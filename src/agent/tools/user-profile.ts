@@ -27,6 +27,9 @@ export const updateUserProfileTool = new FunctionTool({
   }),
   execute: async (params) => {
     try {
+      // Get or create user (defaults to default_user for now)
+      const user = await getOrCreateUser();
+      
       // Merge new preferences with existing ones, handling arrays intelligently
       const existingPrefs = (user.preferences as Record<string, unknown>) || {};
       const newPreferences = { ...existingPrefs };
