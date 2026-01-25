@@ -97,10 +97,10 @@ CREATE TABLE IF NOT EXISTS patterns (
 CREATE TABLE IF NOT EXISTS embeddings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  content_type VARCHAR(50), -- 'message', 'log', 'pattern'
-  content_id UUID,
+  content_type VARCHAR(50), -- 'message', 'log', 'pattern', 'goal', 'insight'
+  content_id UUID UNIQUE, -- Unique constraint for upsert support
   content_text TEXT,
-  embedding vector(1536), -- OpenAI embedding dimension, adjust if using different model
+  embedding vector(768), -- Google text-embedding-004 dimension
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -112,3 +112,5 @@ USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS daily_logs_user_date_idx ON daily_logs(user_id, log_date);
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS goals_user_status_idx ON goals(user_id, status);
+CREATE INDEX IF NOT EXISTS check_ins_user_idx ON check_ins(user_id, created_at);
+CREATE INDEX IF NOT EXISTS patterns_user_idx ON patterns(user_id, pattern_type);
