@@ -136,19 +136,21 @@ async function calculateNextCheckIn(userId: string): Promise<CheckInSchedule> {
   // Get optimal timing
   const timing = await analyzeOptimalTiming(userId);
   
-  // Get triggers for check-in
-  const lastActivity = await sql`
-    SELECT log_date, log_type
-    FROM daily_logs
-    WHERE user_id = ${userId}::uuid AND log_type = 'exercise'
-    ORDER BY log_date DESC
-    LIMIT 1
+  // Get triggers for check-in - also get total count to determine if user is new
+  const activityInfo = await sql`
+    SELECT 
+      (SELECT log_date FROM daily_logs WHERE user_id = ${userId}::uuid AND log_type = 'exercise' ORDER BY log_date DESC LIMIT 1) as last_exercise_date,
+      (SELECT COUNT(*) FROM daily_logs WHERE user_id = ${userId}::uuid) as total_logs
   `;
 
-  // Use -1 to indicate no activity exists (avoids Infinity comparison issues)
-  const daysSinceActivity = lastActivity.length > 0
-    ? Math.floor((Date.now() - new Date(lastActivity[0].log_date).getTime()) / (1000 * 60 * 60 * 24))
-    : -1; // -1 means no exercise activity ever recorded (could be new or existing user)
+  const lastExerciseDate = activityInfo[0]?.last_exercise_date;
+  const totalLogs = Number(activityInfo[0]?.total_logs || 0);
+  const isNewUser = totalLogs === 0;
+
+  // Use -1 to indicate no exercise exists (avoids Infinity comparison issues)
+  const daysSinceActivity = lastExerciseDate
+    ? Math.floor((Date.now() - new Date(lastExerciseDate).getTime()) / (1000 * 60 * 60 * 24))
+    : -1; // -1 means no exercise activity ever recorded
 
   // Calculate next check-in
   const now = new Date();
@@ -159,9 +161,7 @@ async function calculateNextCheckIn(userId: string): Promise<CheckInSchedule> {
 
   // Check if user has no exercise activity logged
   if (daysSinceActivity === -1) {
-    // No exercise logged - check if this is a new user or existing user without exercise
-    const userActivityCount = await sql`SELECT COUNT(*) as count FROM daily_logs WHERE user_id = ${userId}::uuid`;
-    const isNewUser = Number(userActivityCount[0]?.count || 0) === 0;
+    // No exercise logged - use isNewUser from the combined query (no second DB call needed)
     
     nextCheckIn = now;
     reason = isNewUser ? 'New user with no activity' : 'User has never logged exercise activity';

@@ -24,6 +24,19 @@ interface MessageContext {
  */
 async function analyzeMessageSentiment(message: string): Promise<SentimentAnalysis> {
   try {
+    // Validate API key exists before making request
+    const apiKey = process.env.GOOGLE_GENAI_API_KEY;
+    if (!apiKey) {
+      console.warn('GOOGLE_GENAI_API_KEY not configured, using default sentiment');
+      return {
+        sentiment: 'neutral',
+        emotions: [],
+        intensity: 0.5,
+        needsSupport: false,
+        suggestedApproach: 'Respond naturally and helpfully.'
+      };
+    }
+
     const prompt = `Analyze the emotional content of this health coaching conversation message.
 
 Message: "${message}"
@@ -43,7 +56,7 @@ Respond in JSON format:
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': process.env.GOOGLE_GENAI_API_KEY || '',
+          'x-goog-api-key': apiKey,
         },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],

@@ -6,7 +6,7 @@ import { healthAgent } from '@/agent/health-agent';
 import { opik } from '@/lib/opik';
 import { evaluateActionability } from '@/lib/evals/actionability';
 import { evaluateSafety } from '@/lib/evals/safety';
-import { getOrCreateConversation, saveMessage, getConversationHistory } from '@/agent/tools/conversation-helpers';
+import { getOrCreateConversation, saveMessage } from '@/agent/tools/conversation-helpers';
 import { getOrCreateUser } from '@/agent/tools/user-helper';
 
 const APP_NAME = 'healthic';
@@ -85,13 +85,9 @@ export async function POST(request: NextRequest) {
     // Get or create conversation for message persistence
     const conversation = await getOrCreateConversation(userId, conversationId);
 
-    // Load conversation history for context
-    const history = await getConversationHistory(conversation.id, 20);
-    const historyContext = history.length > 0 
-      ? `\n\nPrevious conversation context:\n${history.map(m => `${m.role}: ${m.content}`).join('\n')}\n\n`
-      : '';
-
-    // Save user message to database
+    // Save user message to database for persistence (history is maintained by ADK session)
+    // Note: We persist to DB for long-term storage, but don't inject into message
+    // since InMemoryRunner already maintains session conversation state
     await saveMessage(conversation.id, 'user', message);
 
     // Update trace with validated input
@@ -116,9 +112,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create user content with conversation history for context
-    const messageWithContext = historyContext ? `${historyContext}Current message: ${message}` : message;
-    const userContent = createUserContent(messageWithContext);
+    // Create user content - ADK session maintains conversation history, no need to inject
+    const userContent = createUserContent(message);
 
     // Create span for agent execution
     const agentSpan = trace.span({

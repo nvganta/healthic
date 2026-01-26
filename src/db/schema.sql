@@ -94,15 +94,24 @@ CREATE TABLE IF NOT EXISTS patterns (
 );
 
 -- Embeddings for semantic search (using pgvector)
--- NOTE: If migrating from existing data, run this first to check for duplicates:
+-- MIGRATION: If upgrading from existing deployment, run the migration script below BEFORE applying this schema:
+--
+-- Step 1: Check for duplicates
 -- SELECT content_id, COUNT(*) FROM embeddings GROUP BY content_id HAVING COUNT(*) > 1;
--- Then deduplicate before adding UNIQUE constraint:
--- DELETE FROM embeddings WHERE id NOT IN (SELECT MIN(id) FROM embeddings GROUP BY content_id);
+--
+-- Step 2: If duplicates exist, deduplicate (keeps most recent):
+-- DELETE FROM embeddings a USING embeddings b 
+-- WHERE a.id < b.id AND a.content_id = b.content_id;
+--
+-- Step 3: Add UNIQUE constraint if not exists:
+-- ALTER TABLE embeddings ADD CONSTRAINT embeddings_content_id_unique UNIQUE (content_id);
+--
+-- For fresh deployments, the UNIQUE constraint is included in CREATE TABLE below.
 CREATE TABLE IF NOT EXISTS embeddings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   content_type VARCHAR(50), -- 'message', 'log', 'pattern', 'goal', 'insight'
-  content_id UUID UNIQUE, -- Unique constraint for upsert support (dedupe existing data before migration)
+  content_id UUID UNIQUE, -- Unique constraint for upsert support
   content_text TEXT,
   embedding vector(768), -- Google text-embedding-004 dimension
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

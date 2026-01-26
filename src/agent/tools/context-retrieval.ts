@@ -56,6 +56,8 @@ async function storeEmbedding(
     // Convert embedding array to pgvector format
     const embeddingStr = `[${embedding.join(',')}]`;
 
+    // Upsert embedding - requires UNIQUE constraint on content_id in embeddings table
+    // See schema.sql migration instructions if deploying to existing database
     await sql`
       INSERT INTO embeddings (user_id, content_type, content_id, content_text, embedding)
       VALUES (${userId}::uuid, ${contentType}, ${contentId}::uuid, ${contentText}, ${embeddingStr}::vector)
@@ -64,7 +66,11 @@ async function storeEmbedding(
         embedding = ${embeddingStr}::vector
     `;
   } catch (error) {
+    // Log error with helpful migration hint
     console.error('Error storing embedding:', error);
+    if (String(error).includes('constraint')) {
+      console.error('HINT: Ensure UNIQUE constraint exists on embeddings.content_id. See schema.sql for migration steps.');
+    }
     // Don't throw - embedding storage is non-critical
   }
 }

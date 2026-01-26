@@ -281,9 +281,12 @@ Always explain to the user why the change is being made.`,
             )
           );
 
+          // Update weekly target with truncated notes to prevent unbounded growth
+          // Keep only the last 500 characters of notes to maintain reasonable size
           await sql`
             UPDATE weekly_targets 
-            SET target_value = ${weeklyTarget}, notes = CONCAT(COALESCE(notes, ''), ' [Adapted: ', ${params.reason}, ']')
+            SET target_value = ${weeklyTarget}, 
+                notes = RIGHT(CONCAT(COALESCE(notes, ''), ' [Adapted: ', ${params.reason}, ']'), 500)
             WHERE goal_id = ${params.goalId}::uuid
               AND week_start <= CURRENT_DATE
               AND week_start + 7 > CURRENT_DATE
