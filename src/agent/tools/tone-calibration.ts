@@ -119,9 +119,9 @@ Returns the most effective tone based on past interactions and user preference.`
         success: true,
         ...analysis,
         toneGuide: {
-          tough_love: 'Be direct, challenge them, dont sugarcoat. "You said you would, but you didnt. Whats really going on?"',
-          gentle: 'Lead with empathy, validate feelings, small steps. "Its okay to have setbacks. What felt hard about this week?"',
-          balanced: 'Mix accountability with support. "I notice you missed a few days - thats normal. Lets figure out what happened and adjust."'
+          tough_love: "Be direct, challenge them, don't sugarcoat. \"You said you would, but you didn't. What's really going on?\"",
+          gentle: "Lead with empathy, validate feelings, small steps. \"It's okay to have setbacks. What felt hard about this week?\"",
+          balanced: "Mix accountability with support. \"I notice you missed a few days - that's normal. Let's figure out what happened and adjust.\""
         }
       };
     } catch (error) {

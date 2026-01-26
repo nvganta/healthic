@@ -148,7 +148,7 @@ async function calculateNextCheckIn(userId: string): Promise<CheckInSchedule> {
   // Use -1 to indicate no activity exists (avoids Infinity comparison issues)
   const daysSinceActivity = lastActivity.length > 0
     ? Math.floor((Date.now() - new Date(lastActivity[0].log_date).getTime()) / (1000 * 60 * 60 * 24))
-    : -1; // -1 means no activity ever recorded
+    : -1; // -1 means no exercise activity ever recorded (could be new or existing user)
 
   // Calculate next check-in
   const now = new Date();
@@ -157,11 +157,11 @@ async function calculateNextCheckIn(userId: string): Promise<CheckInSchedule> {
   let priority: 'high' | 'medium' | 'low' = 'low';
   let suggestedMessage = '';
 
-  // Check if this is a new user with no activity
+  // Check if user has no exercise activity logged
   if (daysSinceActivity === -1) {
-    // New user - schedule welcome check-in
+    // No exercise logged - could be new user or user who hasn't started exercising
     nextCheckIn = now;
-    reason = 'New user - no activity logged yet';
+    reason = 'No exercise activity logged yet';
     priority = 'medium';
     suggestedMessage = `Welcome! I noticed you haven't logged any activity yet. Would you like to start with something small today?`;
   } else if (daysSinceActivity >= 5) {
