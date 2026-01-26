@@ -35,9 +35,16 @@ async function analyzeCheckInTriggers(userId: string): Promise<CheckInTrigger[]>
   const lastExercise = exerciseLogs[0];
   
   if (lastExercise) {
-    const daysSinceExercise = Math.floor(
-      (Date.now() - new Date(lastExercise.log_date).getTime()) / (1000 * 60 * 60 * 24)
-    );
+    // Use date string comparison to avoid timezone issues
+    const logDateStr = lastExercise.log_date.toISOString 
+      ? lastExercise.log_date.toISOString().split('T')[0]
+      : String(lastExercise.log_date).split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Calculate days difference using UTC dates
+    const logDate = new Date(logDateStr + 'T00:00:00Z');
+    const today = new Date(todayStr + 'T00:00:00Z');
+    const daysSinceExercise = Math.floor((today.getTime() - logDate.getTime()) / (1000 * 60 * 60 * 24));
     
     if (daysSinceExercise >= 3 && daysSinceExercise < 5) {
       triggers.push({

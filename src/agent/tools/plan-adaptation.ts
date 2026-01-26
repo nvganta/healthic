@@ -264,9 +264,25 @@ Always explain to the user why the change is being made.`,
           `;
 
           // Update current week's target if exists
+          // Calculate weekly target intelligently based on goal type and timeline
+          const currentGoal = goal[0];
+          const daysToDeadline = currentGoal.target_date 
+            ? Math.max(7, Math.ceil((new Date(currentGoal.target_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+            : 90; // Default 90 days if no deadline
+          const weeksRemaining = Math.max(1, Math.ceil(daysToDeadline / 7));
+          
+          // Calculate weekly target as portion of remaining goal, capped at reasonable values
+          const weeklyTarget = Math.min(
+            newTarget * 0.2, // Cap at 20% per week max
+            Math.max(
+              newTarget / weeksRemaining, // Divide evenly across remaining weeks
+              newTarget * 0.02 // At least 2% per week
+            )
+          );
+
           await sql`
             UPDATE weekly_targets 
-            SET target_value = ${newTarget * 0.1}, notes = CONCAT(COALESCE(notes, ''), ' [Adapted: ', ${params.reason}, ']')
+            SET target_value = ${weeklyTarget}, notes = CONCAT(COALESCE(notes, ''), ' [Adapted: ', ${params.reason}, ']')
             WHERE goal_id = ${params.goalId}::uuid
               AND week_start <= CURRENT_DATE
               AND week_start + 7 > CURRENT_DATE
@@ -274,8 +290,8 @@ Always explain to the user why the change is being made.`,
 
           return {
             success: true,
-            message: `Goal target updated to ${newTarget}. ${params.adaptationType === 'reduce_target' ? 'Reduced target to build consistency' : 'Increased target for continued progress'}.`,
-            adaptation: { type: params.adaptationType, newValue: newTarget, reason: params.reason }
+            message: `Goal target updated to ${newTarget}. Weekly target adjusted to ${weeklyTarget.toFixed(2)}. ${params.adaptationType === 'reduce_target' ? 'Reduced target to build consistency' : 'Increased target for continued progress'}.`,
+            adaptation: { type: params.adaptationType, newValue: newTarget, weeklyTarget, reason: params.reason }
           };
         }
 

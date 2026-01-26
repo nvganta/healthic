@@ -5,6 +5,7 @@ import { getOrCreateUser } from './user-helper';
 
 interface UserPortrait {
   summary: string;
+  isDefault?: boolean;
   personality: {
     motivationStyle: string;
     communicationPreference: string;
@@ -121,11 +122,19 @@ Create a portrait that helps the AI coach this person better. Respond in JSON:
 
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    return JSON.parse(text);
+    
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.error('Error parsing portrait JSON:', parseError, 'Raw text:', text);
+      throw new Error('Failed to parse LLM response as JSON');
+    }
   } catch (error) {
     console.error('Error generating portrait:', error);
+    // Return default portrait with clear indication it's a fallback
     return {
       summary: 'New user - still learning about them.',
+      isDefault: true,
       personality: {
         motivationStyle: 'Unknown',
         communicationPreference: 'Unknown',
@@ -265,13 +274,25 @@ This synthesizes ALL data about the user into actionable insights.`,
       // Generate new portrait
       const portrait = await generateUserPortrait(user.id);
       
-      // Cache it
-      await sql`
-        INSERT INTO patterns (user_id, pattern_type, description, confidence)
-        VALUES (${user.id}::uuid, 'portrait', ${JSON.stringify(portrait)}, 1.0)
-        ON CONFLICT (user_id, pattern_type) 
-        DO UPDATE SET description = ${JSON.stringify(portrait)}, updated_at = NOW()
+      // Cache it - use upsert pattern with subquery since patterns table doesn't have (user_id, pattern_type) unique constraint
+      const existingPortrait = await sql`
+        SELECT id FROM patterns 
+        WHERE user_id = ${user.id}::uuid AND pattern_type = 'portrait'
+        LIMIT 1
       `;
+      
+      if (existingPortrait.length > 0) {
+        await sql`
+          UPDATE patterns 
+          SET description = ${JSON.stringify(portrait)}, updated_at = NOW()
+          WHERE id = ${existingPortrait[0].id}::uuid
+        `;
+      } else {
+        await sql`
+          INSERT INTO patterns (user_id, pattern_type, description, confidence)
+          VALUES (${user.id}::uuid, 'portrait', ${JSON.stringify(portrait)}, 1.0)
+        `;
+      }
 
       return {
         success: true,

@@ -8,13 +8,18 @@ import { getOrCreateUser } from './user-helper';
  * Using text-embedding-004 for better quality.
  */
 async function generateEmbedding(text: string): Promise<number[]> {
+  const apiKey = process.env.GOOGLE_GENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GOOGLE_GENAI_API_KEY environment variable is not set');
+  }
+
   const response = await fetch(
     'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent',
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': process.env.GOOGLE_GENAI_API_KEY || '',
+        'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
         model: 'models/text-embedding-004',

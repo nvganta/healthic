@@ -115,20 +115,33 @@ async function getConversationContext(userId: string): Promise<MessageContext> {
 
   let streak = 0;
   if (recentActivity.length > 0) {
+    // Use UTC date strings for comparison to avoid timezone issues
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
     
     for (let i = 0; i < recentActivity.length; i++) {
-      const logDate = new Date(recentActivity[i].log_date + 'T00:00:00Z');
+      // log_date from DB is already a date string (YYYY-MM-DD)
+      const logDateStr = recentActivity[i].log_date.toISOString 
+        ? recentActivity[i].log_date.toISOString().split('T')[0]
+        : String(recentActivity[i].log_date).split('T')[0];
+      
+      // Calculate expected date string
       const expectedDate = new Date(today);
       expectedDate.setDate(today.getDate() - i);
-      expectedDate.setHours(0, 0, 0, 0);
+      const expectedDateStr = expectedDate.toISOString().split('T')[0];
       
-      if (logDate.getTime() === expectedDate.getTime()) {
+      if (logDateStr === expectedDateStr) {
         streak++;
-      } else if (i === 0 && logDate.getTime() === expectedDate.getTime() - 86400000) {
+      } else if (i === 0) {
         // Allow for checking yesterday if today hasn't been logged yet
-        streak++;
+        const yesterdayDate = new Date(today);
+        yesterdayDate.setDate(today.getDate() - 1);
+        const yesterdayStr = yesterdayDate.toISOString().split('T')[0];
+        if (logDateStr === yesterdayStr) {
+          streak++;
+        } else {
+          break;
+        }
       } else {
         break;
       }
