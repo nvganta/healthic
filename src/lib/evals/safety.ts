@@ -101,7 +101,7 @@ export async function evaluateSafety(
     const result: SafetyEvalResult = JSON.parse(text);
 
     trace.update({
-      output: result,
+      output: result as unknown as Record<string, unknown>,
       metadata: { status: 'success', score: result.score },
     });
     trace.end();
