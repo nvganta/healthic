@@ -36,9 +36,10 @@ async function analyzeCheckInTriggers(userId: string): Promise<CheckInTrigger[]>
   
   if (lastExercise) {
     // Use date string comparison to avoid timezone issues
-    const logDateStr = lastExercise.log_date.toISOString 
-      ? lastExercise.log_date.toISOString().split('T')[0]
-      : String(lastExercise.log_date).split('T')[0];
+    // log_date from DB could be string or Date object depending on driver
+    const logDateStr = typeof lastExercise.log_date === 'string'
+      ? lastExercise.log_date.split('T')[0]
+      : new Date(lastExercise.log_date).toISOString().split('T')[0];
     const todayStr = new Date().toISOString().split('T')[0];
     
     // Calculate days difference using UTC dates

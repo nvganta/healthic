@@ -159,11 +159,16 @@ async function calculateNextCheckIn(userId: string): Promise<CheckInSchedule> {
 
   // Check if user has no exercise activity logged
   if (daysSinceActivity === -1) {
-    // No exercise logged - could be new user or user who hasn't started exercising
+    // No exercise logged - check if this is a new user or existing user without exercise
+    const userActivityCount = await sql`SELECT COUNT(*) as count FROM daily_logs WHERE user_id = ${userId}::uuid`;
+    const isNewUser = Number(userActivityCount[0]?.count || 0) === 0;
+    
     nextCheckIn = now;
-    reason = 'No exercise activity logged yet';
+    reason = isNewUser ? 'New user with no activity' : 'User has never logged exercise activity';
     priority = 'medium';
-    suggestedMessage = `Welcome! I noticed you haven't logged any activity yet. Would you like to start with something small today?`;
+    suggestedMessage = isNewUser 
+      ? `Welcome! I noticed you haven't logged any activity yet. Would you like to start with something small today?`
+      : `I see you haven't logged any exercise yet. Would you like to set an exercise goal and get started?`;
   } else if (daysSinceActivity >= 5) {
     // Urgent - extended absence
     nextCheckIn = now;

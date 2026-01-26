@@ -120,10 +120,10 @@ async function getConversationContext(userId: string): Promise<MessageContext> {
     const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
     
     for (let i = 0; i < recentActivity.length; i++) {
-      // log_date from DB is already a date string (YYYY-MM-DD)
-      const logDateStr = recentActivity[i].log_date.toISOString 
-        ? recentActivity[i].log_date.toISOString().split('T')[0]
-        : String(recentActivity[i].log_date).split('T')[0];
+      // log_date from DB could be string or Date object depending on driver
+      const logDateStr = typeof recentActivity[i].log_date === 'string'
+        ? recentActivity[i].log_date.split('T')[0]
+        : new Date(recentActivity[i].log_date).toISOString().split('T')[0];
       
       // Calculate expected date string
       const expectedDate = new Date(today);

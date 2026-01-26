@@ -99,10 +99,11 @@ async function analyzePlanEffectiveness(userId: string, goalId?: string): Promis
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         dayNames.forEach(d => daySuccess[d] = { logged: 0, total: 0 });
 
-        // Count exercise days
+        // Count exercise days - use local timezone for day-of-week analysis
         const uniqueDates = new Set(exerciseLogs.map(l => l.log_date));
         uniqueDates.forEach(date => {
-          const dayName = dayNames[new Date(date + 'T00:00:00Z').getUTCDay()];
+          // Use local timezone (getDay) not UTC (getUTCDay) for user's day-of-week
+          const dayName = dayNames[new Date(date).getDay()];
           daySuccess[dayName].logged++;
         });
 
