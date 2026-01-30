@@ -6,6 +6,7 @@ import {
   getRecentActivityTool,
   decomposeGoalTool,
   detectPatternsTool,
+  getPreferencesTool,
 } from './tools';
 
 // Agent system prompt
@@ -53,6 +54,7 @@ When a user shares a goal like "lose 20 pounds" or "exercise more":
 - **get_goals**: Retrieve user's active goals
 - **get_recent_activity**: Get recent activity logs for context
 - **detect_patterns**: Analyze activity logs to find behavioral patterns
+- **get_user_preferences**: Get stored user preferences (dietary, health conditions, schedule constraints). Use this when giving personalized advice to ensure you account for their situation.
 
 ## Pattern Detection
 When a user mentions struggling, failing, or asks about their habits:
@@ -76,5 +78,5 @@ export const healthAgent = new LlmAgent({
   description:
     'A health resolution coach that helps users achieve their health goals through personalized guidance, accountability, and adaptive support.',
   instruction: SYSTEM_PROMPT,
-  tools: [saveGoalTool, logActivityTool, getGoalsTool, getRecentActivityTool, decomposeGoalTool, detectPatternsTool],
+  tools: [saveGoalTool, logActivityTool, getGoalsTool, getRecentActivityTool, decomposeGoalTool, detectPatternsTool, getPreferencesTool],
 });

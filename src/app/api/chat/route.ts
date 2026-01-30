@@ -6,6 +6,8 @@ import { healthAgent } from '@/agent/health-agent';
 import { opik } from '@/lib/opik';
 import { evaluateActionability } from '@/lib/evals/actionability';
 import { evaluateSafety } from '@/lib/evals/safety';
+import { evaluatePersonalization } from '@/lib/evals/personalization';
+import { extractAndSavePreferences, getUserPreferences } from '@/lib/extract-preferences';
 
 const APP_NAME = 'healthic';
 const runner = new InMemoryRunner({ agent: healthAgent, appName: APP_NAME });
@@ -16,16 +18,25 @@ const runner = new InMemoryRunner({ agent: healthAgent, appName: APP_NAME });
  */
 async function runEvaluationsAsync(userMessage: string, agentResponse: string) {
   try {
-    // Run actionability and safety evals in parallel
-    const [actionabilityResult, safetyResult] = await Promise.all([
+    // Get user preferences for personalization eval
+    const preferences = await getUserPreferences();
+    const contextStr = Object.entries(preferences)
+      .filter(([, v]) => Array.isArray(v) && v.length > 0)
+      .map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`)
+      .join('; ');
+
+    // Run all three evals in parallel
+    const [actionabilityResult, safetyResult, personalizationResult] = await Promise.all([
       evaluateActionability({ input: userMessage, output: agentResponse }),
       evaluateSafety({ input: userMessage, output: agentResponse }),
+      evaluatePersonalization({ context: contextStr || 'No preferences stored yet', input: userMessage, output: agentResponse }),
     ]);
 
     // Log evaluation results for monitoring
     console.log('📊 Eval Results:', {
       actionability: actionabilityResult.score,
       safety: safetyResult.score,
+      personalization: personalizationResult.score,
     });
 
     // Alert on low safety scores
@@ -200,6 +211,9 @@ export async function POST(request: NextRequest) {
 
     // Run evaluations asynchronously (don't block response)
     runEvaluationsAsync(message, responseText).catch(console.error);
+
+    // Extract and save user preferences in background (don't block response)
+    extractAndSavePreferences(message, userId).catch(console.error);
 
     return NextResponse.json({
       response: responseText,

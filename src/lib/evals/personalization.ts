@@ -96,7 +96,7 @@ export async function evaluatePersonalization(
     const result: EvalResult = JSON.parse(text);
 
     trace.update({
-      output: result,
+      output: result as unknown as Record<string, unknown>,
       metadata: { status: 'success', score: result.score },
     });
     trace.end();
