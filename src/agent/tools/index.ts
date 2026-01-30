@@ -4,44 +4,45 @@ export { getGoalsTool } from './get-goals';
 export { getRecentActivityTool } from './get-recent-activity';
 export { decomposeGoalTool } from './decompose-goal';
 export { detectPatternsTool } from './detect-patterns';
+export { getPreferencesTool } from './get-preferences';
 
 // Phase 2: Conversation persistence and user profiles
 export { updateUserProfileTool, getUserProfileTool } from './user-profile';
 export { getWeeklyProgressTool, updateWeeklyProgressTool } from './weekly-progress';
-export { 
-  getOrCreateConversation, 
-  saveMessage, 
+export {
+  getOrCreateConversation,
+  saveMessage,
   getConversationHistory,
-  getUserConversations 
+  getUserConversations
 } from './conversation-helpers';
 
 // Phase 3: Proactive check-ins
-export { 
-  checkForProactiveOutreachTool, 
-  recordCheckInTool, 
-  recordCheckInResponseTool 
+export {
+  checkForProactiveOutreachTool,
+  recordCheckInTool,
+  recordCheckInResponseTool
 } from './proactive-checkins';
 
 // Phase 3: Plan adaptation
-export { 
-  analyzePlanEffectivenessTool, 
-  applyPlanAdaptationTool, 
-  getAdaptationHistoryTool 
+export {
+  analyzePlanEffectivenessTool,
+  applyPlanAdaptationTool,
+  getAdaptationHistoryTool
 } from './plan-adaptation';
 
 // Phase 3: Context retrieval (vector search)
-export { 
-  storeInsightTool, 
-  searchContextTool, 
-  indexConversationTool, 
-  findSimilarSituationsTool 
+export {
+  storeInsightTool,
+  searchContextTool,
+  indexConversationTool,
+  findSimilarSituationsTool
 } from './context-retrieval';
 
 // Phase 3: Tone calibration
-export { 
-  calibrateToneTool, 
-  updateTonePreferenceTool, 
-  getToneGuidanceTool 
+export {
+  calibrateToneTool,
+  updateTonePreferenceTool,
+  getToneGuidanceTool
 } from './tone-calibration';
 
 // Phase 3 Advanced: Emotional Intelligence

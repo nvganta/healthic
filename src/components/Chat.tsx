@@ -68,7 +68,9 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -80,6 +82,42 @@ export default function Chat() {
     scrollToBottom();
   }, [messages]);
 
+  // Load conversation history on mount
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/conversations');
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          setMessages(data.messages);
+          setConversationId(data.conversation?.id || null);
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    }
+    loadHistory();
+  }, []);
+
+  // Save a message to the database
+  const saveMessage = async (role: 'user' | 'assistant', content: string, toolCalls?: Array<{ name: string; args: unknown }>) => {
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, role, content, toolCalls }),
+      });
+      const data = await res.json();
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId);
+      }
+    } catch (error) {
+      console.error('Failed to save message:', error);
+    }
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -89,6 +127,9 @@ export default function Chat() {
     setInput('');
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userMessage }]);
     setIsLoading(true);
+
+    // Save user message to database
+    saveMessage('user', userMessage);
 
     try {
       const response = await fetch('/api/chat', {
@@ -103,18 +144,21 @@ export default function Chat() {
       const data = await response.json();
 
       if (response.ok) {
+        const assistantContent = data.response || 'No response';
         setMessages((prev) => [
           ...prev,
           {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: data.response || 'No response',
+            content: assistantContent,
             toolCalls: data.toolCalls,
           },
         ]);
         if (data.sessionId) {
           setSessionId(data.sessionId);
         }
+        // Save assistant message to database
+        saveMessage('assistant', assistantContent, data.toolCalls);
       } else {
         setMessages((prev) => [
           ...prev,
@@ -147,7 +191,18 @@ export default function Chat() {
     <div className="flex flex-col h-[calc(100vh-57px)]">
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        {messages.length === 0 ? (
+        {isLoadingHistory ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex items-center gap-3 text-slate-400">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-sm">Loading conversation...</span>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in">
             {/* Welcome card */}
             <div className="max-w-lg w-full">

@@ -7,6 +7,7 @@ import {
   getRecentActivityTool,
   decomposeGoalTool,
   detectPatternsTool,
+  getPreferencesTool,
   updateUserProfileTool,
   getUserProfileTool,
   getWeeklyProgressTool,
@@ -78,6 +79,9 @@ Use **get_user_portrait** periodically to understand:
 - **analyze_sentiment** - Read their emotional state from every message
 - **detect_escalation** - Catch rising frustration and de-escalate
 - **get_conversation_context** - Know their recent mood and activity streak
+
+### User Preferences
+- **get_user_preferences** - Get stored user preferences (dietary, health conditions, schedule constraints). Use this when giving personalized advice to ensure you account for their situation.
 
 ### Smart Timing & Outreach
 - **learn_optimal_timing** - Know WHEN they're most responsive
@@ -177,12 +181,13 @@ export const healthAgent = new LlmAgent({
   instruction: SYSTEM_PROMPT,
   tools: [
     // Core tools (Phase 1-2)
-    saveGoalTool, 
-    logActivityTool, 
-    getGoalsTool, 
-    getRecentActivityTool, 
-    decomposeGoalTool, 
+    saveGoalTool,
+    logActivityTool,
+    getGoalsTool,
+    getRecentActivityTool,
+    decomposeGoalTool,
     detectPatternsTool,
+    getPreferencesTool,
     updateUserProfileTool,
     getUserProfileTool,
     getWeeklyProgressTool,
@@ -207,7 +212,7 @@ export const healthAgent = new LlmAgent({
     analyzeSentimentTool,
     getConversationContextTool,
     detectEscalationTool,
-    // Phase 3 Advanced: Smart Scheduling  
+    // Phase 3 Advanced: Smart Scheduling
     learnOptimalTimingTool,
     getSmartCheckInScheduleTool,
     generateCheckInMessageTool,
