@@ -4,12 +4,47 @@ import { useState } from 'react';
 import Chat from '@/components/Chat';
 import Sidebar from '@/components/Sidebar';
 
+interface ConversationItem {
+  id: string;
+  startedAt: string;
+  lastMessageAt: string;
+  lastMessage: string;
+}
+
 export default function Home() {
   const [chatKey, setChatKey] = useState(0);
+  const [isNewChat, setIsNewChat] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
 
   const handleNewChat = () => {
+    setIsNewChat(true);
+    setActiveConversationId(null);
     setChatKey((prev) => prev + 1);
+    setIsHistoryOpen(false);
+  };
+
+  const handleSelectConversation = (conversationId: string) => {
+    setIsNewChat(false);
+    setActiveConversationId(conversationId);
+    setChatKey((prev) => prev + 1);
+    setIsHistoryOpen(false);
+  };
+
+  const fetchConversations = async () => {
+    setIsLoadingConversations(true);
+    try {
+      const res = await fetch('/api/conversations/list');
+      const data = await res.json();
+      setConversations(data.conversations || []);
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+    } finally {
+      setIsLoadingConversations(false);
+    }
   };
 
   return (
@@ -73,7 +108,86 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              {/* New Chat button */}
+              <button
+                onClick={handleNewChat}
+                className="p-2 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors"
+                title="New Chat"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+
+              {/* History button */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const opening = !isHistoryOpen;
+                    setIsHistoryOpen(opening);
+                    if (opening) fetchConversations();
+                  }}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isHistoryOpen
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'text-slate-500 hover:bg-emerald-50 hover:text-emerald-700'
+                  }`}
+                  title="Chat History"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+
+                {/* History dropdown */}
+                {isHistoryOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setIsHistoryOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 w-80 max-h-96 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-30">
+                      <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-800 text-sm">Chat History</h3>
+                        <button
+                          onClick={() => setIsHistoryOpen(false)}
+                          className="p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="overflow-y-auto max-h-80">
+                        {isLoadingConversations ? (
+                          <div className="p-4 text-center text-slate-400 text-sm">Loading...</div>
+                        ) : conversations.length === 0 ? (
+                          <div className="p-4 text-center text-slate-400 text-sm">No conversations yet</div>
+                        ) : (
+                          conversations.map((conv) => (
+                            <button
+                              key={conv.id}
+                              onClick={() => handleSelectConversation(conv.id)}
+                              className={`w-full text-left px-4 py-3 hover:bg-emerald-50 border-b border-slate-50 transition-colors ${
+                                activeConversationId === conv.id ? 'bg-emerald-50' : ''
+                              }`}
+                            >
+                              <p className="text-sm text-slate-700 truncate">{conv.lastMessage}</p>
+                              <p className="text-xs text-slate-400 mt-1">
+                                {new Date(conv.lastMessageAt).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
               <span className="px-3 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
                 Beta
               </span>
@@ -83,7 +197,7 @@ export default function Home() {
 
         {/* Chat Area */}
         <main className="flex-1 overflow-hidden">
-          <Chat key={chatKey} />
+          <Chat key={chatKey} isNewChat={isNewChat} loadConversationId={activeConversationId} />
         </main>
       </div>
     </div>

@@ -4,26 +4,42 @@ import { getOrCreateUser } from '@/agent/tools/user-helper';
 
 /**
  * GET /api/conversations
- * Returns the most recent conversation with its messages for the default user.
+ * Returns a conversation with its messages.
+ * - ?id=<uuid> loads a specific conversation
+ * - No param loads the most recent conversation
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await getOrCreateUser();
+    const { searchParams } = new URL(request.url);
+    const specificId = searchParams.get('id');
 
-    // Get the most recent conversation
-    const conversations = await sql`
-      SELECT id, started_at, last_message_at
-      FROM conversations
-      WHERE user_id = ${user.id} AND channel = 'web'
-      ORDER BY last_message_at DESC
-      LIMIT 1
-    `;
+    let conversation;
 
-    if (conversations.length === 0) {
-      return NextResponse.json({ conversation: null, messages: [] });
+    if (specificId) {
+      const conversations = await sql`
+        SELECT id, started_at, last_message_at
+        FROM conversations
+        WHERE id = ${specificId}::uuid AND user_id = ${user.id}
+        LIMIT 1
+      `;
+      if (conversations.length === 0) {
+        return NextResponse.json({ conversation: null, messages: [] });
+      }
+      conversation = conversations[0];
+    } else {
+      const conversations = await sql`
+        SELECT id, started_at, last_message_at
+        FROM conversations
+        WHERE user_id = ${user.id} AND channel = 'web'
+        ORDER BY last_message_at DESC
+        LIMIT 1
+      `;
+      if (conversations.length === 0) {
+        return NextResponse.json({ conversation: null, messages: [] });
+      }
+      conversation = conversations[0];
     }
-
-    const conversation = conversations[0];
 
     // Get messages for this conversation
     const messages = await sql`
