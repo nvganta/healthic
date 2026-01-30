@@ -8,6 +8,8 @@ import { evaluateActionability } from '@/lib/evals/actionability';
 import { evaluateSafety } from '@/lib/evals/safety';
 import { evaluatePersonalization } from '@/lib/evals/personalization';
 import { extractAndSavePreferences, getUserPreferences } from '@/lib/extract-preferences';
+import { getOrCreateConversation, saveMessage } from '@/agent/tools/conversation-helpers';
+import { getOrCreateUser } from '@/agent/tools/user-helper';
 
 const APP_NAME = 'healthic';
 const runner = new InMemoryRunner({ agent: healthAgent, appName: APP_NAME });
@@ -57,8 +59,9 @@ async function runEvaluationsAsync(userMessage: string, agentResponse: string) {
 // Input validation schema
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message is required').max(10000, 'Message too long'),
-  userId: z.string().min(1).max(100).default('default_user'),
+  userId: z.string().min(1).max(100).optional(),
   sessionId: z.string().uuid().optional(),
+  conversationId: z.string().uuid().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -84,11 +87,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
-    const { message, userId, sessionId } = parseResult.data;
+    const { message, userId: requestUserId, sessionId, conversationId } = parseResult.data;
+
+    // Get or create user - use provided userId or default
+    const user = await getOrCreateUser(requestUserId);
+    const userId = user.id;
+
+    // Get or create conversation for message persistence
+    const conversation = await getOrCreateConversation(userId, conversationId);
+
+    // Save user message to database for persistence (history is maintained by ADK session)
+    // Note: We persist to DB for long-term storage, but don't inject into message
+    // since InMemoryRunner already maintains session conversation state
+    await saveMessage(conversation.id, 'user', message);
 
     // Update trace with validated input
     trace.update({
-      input: { message, userId, sessionId },
+      input: { message, userId, sessionId, conversationId: conversation.id },
     });
 
     // Create or get session
@@ -108,7 +123,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create user content
+    // Create user content - ADK session maintains conversation history, no need to inject
     const userContent = createUserContent(message);
 
     // Create span for agent execution
@@ -192,11 +207,15 @@ export async function POST(request: NextRequest) {
     });
     agentSpan.end();
 
+    // Save assistant response to database for persistence
+    await saveMessage(conversation.id, 'assistant', responseText);
+
     // End trace with final output
     trace.update({
       output: {
         response: responseText,
         sessionId: session.id,
+        conversationId: conversation.id,
         toolCallsCount: toolCalls.length,
       },
       metadata: {
@@ -218,6 +237,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       response: responseText,
       sessionId: session.id,
+      conversationId: conversation.id,
       toolCalls,
     });
   } catch (error) {
