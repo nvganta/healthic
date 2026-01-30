@@ -59,9 +59,9 @@ async function runEvaluationsAsync(userMessage: string, agentResponse: string) {
 // Input validation schema
 const chatRequestSchema = z.object({
   message: z.string().min(1, 'Message is required').max(10000, 'Message too long'),
-  userId: z.string().min(1).max(100).optional(),
-  sessionId: z.string().uuid().optional(),
-  conversationId: z.string().uuid().optional(),
+  userId: z.string().min(1).max(100).optional().nullable(),
+  sessionId: z.string().uuid().optional().nullable(),
+  conversationId: z.string().uuid().optional().nullable(),
 });
 
 export async function POST(request: NextRequest) {
@@ -90,11 +90,11 @@ export async function POST(request: NextRequest) {
     const { message, userId: requestUserId, sessionId, conversationId } = parseResult.data;
 
     // Get or create user - use provided userId or default
-    const user = await getOrCreateUser(requestUserId);
+    const user = await getOrCreateUser(requestUserId ?? undefined);
     const userId = user.id;
 
     // Get or create conversation for message persistence
-    const conversation = await getOrCreateConversation(userId, conversationId);
+    const conversation = await getOrCreateConversation(userId, conversationId ?? undefined);
 
     // Save user message to database for persistence (history is maintained by ADK session)
     // Note: We persist to DB for long-term storage, but don't inject into message
