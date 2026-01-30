@@ -41,6 +41,8 @@ import {
   getCrossSessionContinuityTool,
   markForFollowUpTool,
   updateUserPortraitTool,
+  // UI interaction tools
+  presentChoicesTool,
 } from './tools';
 
 // Agent system prompt - Enhanced for Phase 3 Advanced Intelligence
@@ -107,6 +109,12 @@ Use **get_user_portrait** periodically to understand:
 - **calibrate_tone** - What communication style works for them?
 - **get_tone_guidance** - How to frame specific situations
 - **update_tone_preference** - When they request a change
+
+### Structured Questions
+When you need to ask the user multiple questions with clear options (e.g., during onboarding, preference gathering, or check-ins), use **present_choices** to show an interactive side panel:
+- Each question should have exactly 2 specific options (an "Other" option is added automatically)
+- Use this for dietary preferences, exercise preferences, schedule questions, etc.
+- The user's combined answers will be sent back to you as a text message
 
 ## 📋 Core Behaviors
 
@@ -221,5 +229,7 @@ export const healthAgent = new LlmAgent({
     getCrossSessionContinuityTool,
     markForFollowUpTool,
     updateUserPortraitTool,
+    // UI interaction tools
+    presentChoicesTool,
   ],
 });

@@ -1,12 +1,22 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import ChoicesPanel from './ChoicesPanel';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: Array<{ name: string; args: unknown }>;
+}
+
+interface ChoicesData {
+  title: string;
+  questions: Array<{
+    id: string;
+    question: string;
+    options: string[];
+  }>;
 }
 
 // Icons
@@ -40,6 +50,18 @@ const MoonIcon = () => (
   </svg>
 );
 
+const UserIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  </svg>
+);
+
+const HeartIcon = () => (
+  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+  </svg>
+);
+
 // Format tool name to be more readable
 const formatToolName = (name: string) => {
   return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -60,7 +82,7 @@ const formatMessage = (content: string) => {
   // Convert *italic* to <em>
   formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
   // Convert bullet points
-  formatted = formatted.replace(/^\* /gm, '• ');
+  formatted = formatted.replace(/^\* /gm, '&bull; ');
   return formatted;
 };
 
@@ -71,8 +93,9 @@ export default function Chat() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [activeChoices, setActiveChoices] = useState<ChoicesData | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,6 +104,18 @@ export default function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Auto-resize textarea
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+  }, []);
+
+  useEffect(() => {
+    resizeTextarea();
+  }, [input, resizeTextarea]);
 
   // Load conversation history on mount
   useEffect(() => {
@@ -118,13 +153,17 @@ export default function Chat() {
     }
   };
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (messageText?: string) => {
+    const text = messageText ?? input.trim();
+    if (!text || isLoading) return;
 
-    const userMessage = input.trim();
+    const userMessage = text;
     const userMsgId = crypto.randomUUID();
-    setInput('');
+    if (!messageText) setInput('');
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userMessage }]);
     setIsLoading(true);
 
@@ -157,6 +196,10 @@ export default function Chat() {
         if (data.sessionId) {
           setSessionId(data.sessionId);
         }
+        // Show choices panel if agent used present_choices tool
+        if (data.choicesData) {
+          setActiveChoices(data.choicesData);
+        }
         // Save assistant message to database
         saveMessage('assistant', assistantContent, data.toolCalls);
       } else {
@@ -172,13 +215,34 @@ export default function Chat() {
       ]);
     } finally {
       setIsLoading(false);
-      inputRef.current?.focus();
+      textareaRef.current?.focus();
     }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const handleChoicesSubmit = (answers: string) => {
+    setActiveChoices(null);
+    sendMessage(answers);
+  };
+
+  const handleChoicesDismiss = () => {
+    setActiveChoices(null);
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     setInput(suggestion);
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   };
 
   const suggestions = [
@@ -188,154 +252,180 @@ export default function Chat() {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-57px)]">
-      {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        {isLoadingHistory ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex items-center gap-3 text-slate-400">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '300ms' }} />
-              </div>
-              <span className="text-sm">Loading conversation...</span>
-            </div>
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-            {/* Welcome card */}
-            <div className="max-w-lg w-full">
-              <div className="text-center mb-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-xl shadow-emerald-200 mb-4">
-                  <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
+    <div className="flex h-[calc(100vh-57px)]">
+      {/* Main chat area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-4 py-6">
+          {isLoadingHistory ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="flex items-center gap-3 text-slate-400">
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '300ms' }} />
                 </div>
-                <h2 className="text-2xl font-bold text-slate-800 mb-2">Welcome to Healthic</h2>
-                <p className="text-slate-500">
-                  I&apos;m your personal health coach. Tell me about a goal you want to achieve,
-                  and I&apos;ll help you create an actionable plan.
-                </p>
-              </div>
-
-              {/* Suggestion cards */}
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-slate-400 text-center">Try one of these:</p>
-                {suggestions.map((suggestion, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleSuggestionClick(suggestion.text)}
-                    className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-emerald-100 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-100 transition-all duration-200 group"
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
-                      {suggestion.icon}
-                    </div>
-                    <span className="text-left text-slate-700 font-medium">{suggestion.text}</span>
-                    <svg className="w-5 h-5 text-slate-300 ml-auto group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ))}
+                <span className="text-sm">Loading conversation...</span>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="max-w-3xl mx-auto space-y-4">
-            {messages.map((message, index) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                {message.role === 'assistant' && (
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center mr-3 mt-1">
-                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+              {/* Welcome card */}
+              <div className="max-w-lg w-full">
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-xl shadow-emerald-200 mb-4">
+                    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                   </div>
-                )}
-                <div
-                  className={`max-w-[80%] ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-2xl rounded-tr-md px-5 py-3 shadow-lg shadow-emerald-200'
-                      : 'bg-white text-slate-700 rounded-2xl rounded-tl-md px-5 py-4 shadow-sm border border-slate-100'
-                  }`}
-                >
-                  <div
-                    className="message-content whitespace-pre-wrap leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
-                  />
-                  {message.toolCalls && message.toolCalls.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                      {message.toolCalls.map((tool, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-full px-3 py-1"
-                        >
-                          {getToolIcon(tool.name || '')}
-                          {formatToolName(tool.name || 'action')}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Welcome to Healthic</h2>
+                  <p className="text-slate-500">
+                    I&apos;m your personal health coach. Tell me about a goal you want to achieve,
+                    and I&apos;ll help you create an actionable plan.
+                  </p>
+                </div>
+
+                {/* Suggestion cards */}
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-slate-400 text-center">Try one of these:</p>
+                  {suggestions.map((suggestion, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSuggestionClick(suggestion.text)}
+                      className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-emerald-100 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-100 transition-all duration-200 group"
+                    >
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
+                        {suggestion.icon}
+                      </div>
+                      <span className="text-left text-slate-700 font-medium">{suggestion.text}</span>
+                      <svg className="w-5 h-5 text-slate-300 ml-auto group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto space-y-1">
+              {messages.map((message, index) => (
+                <div
+                  key={message.id}
+                  className={`flex items-start gap-3 px-4 py-4 rounded-xl animate-fade-in ${
+                    message.role === 'user'
+                      ? 'bg-emerald-50/70 border-l-4 border-emerald-400'
+                      : 'bg-white'
+                  }`}
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
+                    message.role === 'user'
+                      ? 'bg-emerald-200 text-emerald-700'
+                      : 'bg-gradient-to-br from-emerald-400 to-teal-500'
+                  }`}>
+                    {message.role === 'user' ? <UserIcon /> : <HeartIcon />}
+                  </div>
 
-            {isLoading && (
-              <div className="flex justify-start animate-fade-in">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center mr-3">
-                  <svg className="w-4 h-4 text-white animate-pulse-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </div>
-                <div className="bg-white rounded-2xl rounded-tl-md px-5 py-4 shadow-sm border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    <span className="text-sm text-slate-400">Thinking...</span>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-semibold mb-1 ${
+                      message.role === 'user' ? 'text-emerald-700' : 'text-teal-600'
+                    }`}>
+                      {message.role === 'user' ? 'You' : 'Healthic'}
+                    </p>
+                    <div
+                      className="message-content whitespace-pre-wrap leading-relaxed text-slate-700"
+                      dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
+                    />
+                    {message.toolCalls && message.toolCalls.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+                        {message.toolCalls.map((tool, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-full px-3 py-1"
+                          >
+                            {getToolIcon(tool.name || '')}
+                            {formatToolName(tool.name || 'action')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              ))}
 
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
+              {isLoading && (
+                <div className="flex items-start gap-3 px-4 py-4 rounded-xl bg-white animate-fade-in">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white animate-pulse-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-teal-600 mb-1">Healthic</p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-1">
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />
+                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-sm text-slate-400">Thinking...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-      {/* Input area */}
-      <div className="border-t border-emerald-100 bg-white/80 backdrop-blur-md p-4">
-        <form onSubmit={sendMessage} className="max-w-3xl mx-auto">
-          <div className="flex gap-3 items-center">
-            <div className="flex-1 relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Tell me about your health goals..."
-                className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-400 transition-all"
-                disabled={isLoading}
-              />
+              <div ref={messagesEndRef} />
             </div>
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-300 disabled:shadow-none"
-            >
-              <SendIcon />
-            </button>
-          </div>
-          <p className="text-xs text-center text-slate-400 mt-3">
-            Healthic provides guidance, not medical advice. Consult a healthcare professional for medical concerns.
-          </p>
-        </form>
+          )}
+        </div>
+
+        {/* Input area */}
+        <div className="border-t border-emerald-100 bg-white/80 backdrop-blur-md p-4">
+          <form onSubmit={handleFormSubmit} className="max-w-3xl mx-auto">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1 relative">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Tell me about your health goals..."
+                  rows={1}
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-400 transition-all resize-none overflow-y-auto"
+                  style={{ maxHeight: '150px' }}
+                  disabled={isLoading}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-xl hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center shadow-lg shadow-emerald-200 hover:shadow-xl hover:shadow-emerald-300 disabled:shadow-none"
+              >
+                <SendIcon />
+              </button>
+            </div>
+            <p className="text-xs text-center text-slate-400 mt-3">
+              Healthic provides guidance, not medical advice. Consult a healthcare professional for medical concerns.
+            </p>
+          </form>
+        </div>
       </div>
+
+      {/* Choices panel (right side) */}
+      {activeChoices && (
+        <>
+          {/* Mobile backdrop */}
+          <div className="md:hidden fixed inset-0 bg-black/30 z-40" onClick={handleChoicesDismiss} />
+          <ChoicesPanel
+            title={activeChoices.title}
+            questions={activeChoices.questions}
+            onSubmit={handleChoicesSubmit}
+            onDismiss={handleChoicesDismiss}
+          />
+        </>
+      )}
     </div>
   );
 }

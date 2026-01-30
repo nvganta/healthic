@@ -66,3 +66,6 @@ export {
   markForFollowUpTool,
   updateUserPortraitTool
 } from './user-portrait';
+
+// UI interaction tools
+export { presentChoicesTool } from './present-choices';

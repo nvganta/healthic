@@ -234,11 +234,28 @@ export async function POST(request: NextRequest) {
     // Extract and save user preferences in background (don't block response)
     extractAndSavePreferences(message, userId).catch(console.error);
 
+    // Extract choicesData if agent used present_choices tool
+    const choicesCall = toolCalls.find((tc) => tc.name === 'present_choices');
+    const choicesData = choicesCall
+      ? {
+          title: (choicesCall.args as Record<string, unknown>).title as string,
+          questions: ((choicesCall.args as Record<string, unknown>).questions as Array<{
+            id: string;
+            question: string;
+            options: string[];
+          }>).map((q) => ({
+            ...q,
+            options: [...q.options, 'Other'],
+          })),
+        }
+      : undefined;
+
     return NextResponse.json({
       response: responseText,
       sessionId: session.id,
       conversationId: conversation.id,
       toolCalls,
+      choicesData,
     });
   } catch (error) {
     console.error('Chat error:', error);
