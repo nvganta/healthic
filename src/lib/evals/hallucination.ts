@@ -1,16 +1,7 @@
 import { Opik } from 'opik';
+import { callEvalApi, clampScore } from './utils';
 
 const opik = new Opik({ projectName: 'healthic-evals' });
-
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-
-const EVAL_CONFIG = {
-  maxRetries: 2,
-  retryDelayMs: 1000,
-  hallucinationThreshold: 0.7, // Below this score indicates hallucination risk
-};
 
 // ============================================================================
 // HALLUCINATION DETECTION EVAL
@@ -132,59 +123,6 @@ interface HallucinationResult {
 }
 
 /**
- * Helper function to make API call with retry logic
- */
-async function callEvalApi<T>(prompt: string, defaultResult: T): Promise<T> {
-  const apiKey = process.env.GOOGLE_GENAI_API_KEY;
-  if (!apiKey) {
-    console.warn('GOOGLE_GENAI_API_KEY not configured');
-    return defaultResult;
-  }
-
-  for (let attempt = 0; attempt <= EVAL_CONFIG.maxRetries; attempt++) {
-    try {
-      const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.1,
-              responseMimeType: 'application/json',
-            },
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (!text) {
-        throw new Error('Empty response from API');
-      }
-
-      return JSON.parse(text) as T;
-    } catch (error) {
-      console.error(`API call attempt ${attempt + 1} failed:`, error);
-      if (attempt < EVAL_CONFIG.maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, EVAL_CONFIG.retryDelayMs));
-      }
-    }
-  }
-
-  return defaultResult;
-}
-
-/**
  * Evaluates whether a response contains hallucinations.
  * Uses multi-category analysis for comprehensive fact-checking.
  */
@@ -222,7 +160,7 @@ export async function evaluateHallucination(
     const result = await callEvalApi<HallucinationResult>(prompt, defaultResult);
 
     // Validate score is within bounds
-    result.score = Math.max(0, Math.min(1, result.score));
+    result.score = clampScore(result.score);
 
     // Count hallucinations by severity
     const hallucinationCounts = {

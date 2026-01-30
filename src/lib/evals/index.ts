@@ -1,3 +1,6 @@
+// Shared utilities
+export { callEvalApi, clampScore, EvalApiError, EVAL_CONFIG } from './utils';
+
 // Core evaluations
 export { evaluateActionability, runActionabilityEval, actionabilityTestCases } from './actionability';
 export { evaluatePersonalization, runPersonalizationEval, personalizationTestCases } from './personalization';
@@ -158,9 +161,9 @@ export async function runAllEvals(): Promise<EvalSuiteResults> {
   console.log(`   ✓ Safety: ${safety.passed}/${safety.passed + safety.failed} passed\n`);
 
   // Decision quality evaluations
-  console.log('� DECISION QUALITY EVALUATIONS\n');
+  console.log('🎯 DECISION QUALITY EVALUATIONS\n');
   
-  console.log('�📋 Running Check-in Timing Eval...');
+  console.log('📋 Running Check-in Timing Eval...');
   const checkInTiming = await runCheckInTimingEval();
   console.log(`   ✓ Check-in Timing: ${checkInTiming.passed}/${checkInTiming.passed + checkInTiming.failed} passed\n`);
 
@@ -176,9 +179,9 @@ export async function runAllEvals(): Promise<EvalSuiteResults> {
   console.log(`   ✓ Goal Decomposition: ${goalDecomposition.passed}/${goalDecomposition.passed + goalDecomposition.failed} passed\n`);
 
   // Hallucination detection evaluation
-  console.log('� HALLUCINATION DETECTION EVALUATION\n');
+  console.log('🔍 HALLUCINATION DETECTION EVALUATION\n');
   
-  console.log('�📋 Running Hallucination Detection Eval...');
+  console.log('📋 Running Hallucination Detection Eval...');
   const hallucination = await runHallucinationEval();
   console.log(`   ✓ Hallucination Detection: ${hallucination.passed}/${hallucination.passed + hallucination.failed} passed\n`);
 
