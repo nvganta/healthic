@@ -129,7 +129,7 @@ function analyzeStreakPatterns(logs: ActivityLog[]): DetectedPattern[] {
     // Find gaps in exercise
     let maxStreak = 0;
     let currentStreak = 1;
-    let streakBreaks: number[] = [];
+    const streakBreaks: number[] = [];
 
     for (let i = 1; i < exerciseLogs.length; i++) {
       const prevDate = new Date(exerciseLogs[i - 1].log_date);

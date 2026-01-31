@@ -130,7 +130,6 @@ async function getConversationContext(userId: string): Promise<MessageContext> {
   if (recentActivity.length > 0) {
     // Use UTC date strings for comparison to avoid timezone issues
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
     
     for (let i = 0; i < recentActivity.length; i++) {
       // log_date from DB could be string or Date object depending on driver

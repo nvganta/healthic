@@ -32,7 +32,7 @@ This calculates weekly milestones and suggests specific daily habits.`,
       // Save each weekly target to the database
       const savedTargets = [];
       for (const target of params.weeklyTargets) {
-        const result = await sql`
+        await sql`
           INSERT INTO weekly_targets (goal_id, week_start, target_value, notes)
           VALUES (
             ${params.goalId},
