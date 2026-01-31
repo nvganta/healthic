@@ -6,10 +6,6 @@ const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
 // Allow build to proceed without DATABASE_URL (it will be available at runtime)
 const DATABASE_URL = process.env.DATABASE_URL || '';
 
-if (!DATABASE_URL && !isBuildPhase) {
-  console.warn('⚠️ DATABASE_URL environment variable is not set');
-}
-
 // Create SQL client - throw at runtime if DATABASE_URL is missing (but not during build)
 export const sql: NeonQueryFunction<false, false> = DATABASE_URL 
   ? neon(DATABASE_URL) 
