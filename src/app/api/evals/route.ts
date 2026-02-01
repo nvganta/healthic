@@ -1,11 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runAllEvals, runActionabilityEval, runPersonalizationEval, runSafetyEval } from '@/lib/evals';
+import { syntheticScenarios, listScenarios, getScenariosByCategory, exportScenarioAsMarkdown } from '@/lib/evals/synthetic-scenarios';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const evalType = searchParams.get('type');
+  const scenarioView = searchParams.get('scenarios');
+  const category = searchParams.get('category');
+  const scenarioId = searchParams.get('scenarioId');
 
   try {
+    // Handle scenario listing
+    if (scenarioView === 'list') {
+      return NextResponse.json({
+        success: true,
+        scenarios: listScenarios(),
+        categories: ['happy_path', 'struggling_user', 'safety_critical', 'complex_context', 'edge_case'],
+      });
+    }
+
+    // Handle scenario details
+    if (scenarioId) {
+      const scenario = syntheticScenarios.find(s => s.id === scenarioId);
+      if (!scenario) {
+        return NextResponse.json({ error: 'Scenario not found' }, { status: 404 });
+      }
+      return NextResponse.json({
+        success: true,
+        scenario,
+        markdown: exportScenarioAsMarkdown(scenario),
+      });
+    }
+
+    // Handle category filtering
+    if (category) {
+      const validCategories = ['happy_path', 'struggling_user', 'safety_critical', 'complex_context', 'edge_case'] as const;
+      if (!validCategories.includes(category as typeof validCategories[number])) {
+        return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+      }
+      const scenarios = getScenariosByCategory(category as typeof validCategories[number]);
+      return NextResponse.json({
+        success: true,
+        category,
+        scenarios,
+      });
+    }
+
     let results;
 
     switch (evalType) {

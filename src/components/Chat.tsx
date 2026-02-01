@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ChoicesPanel from './ChoicesPanel';
+import { formatErrorForChat, ErrorCode, getUserFriendlyError } from '@/lib/errors';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: Array<{ name: string; args: unknown }>;
+  isError?: boolean;
 }
 
 interface ChoicesData {
@@ -62,6 +64,18 @@ const HeartIcon = () => (
   </svg>
 );
 
+const AlertIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+  </svg>
+);
+
+const RefreshIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+);
+
 // Format tool name to be more readable
 const formatToolName = (name: string) => {
   return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -94,6 +108,7 @@ export default function Chat() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [activeChoices, setActiveChoices] = useState<ChoicesData | null>(null);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -166,6 +181,7 @@ export default function Chat() {
     }
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userMessage }]);
     setIsLoading(true);
+    setRetryMessage(null);
 
     // Save user message to database
     saveMessage('user', userMessage);
@@ -203,19 +219,55 @@ export default function Chat() {
         // Save assistant message to database
         saveMessage('assistant', assistantContent, data.toolCalls);
       } else {
+        // Handle API errors with user-friendly messages
+        const errorInfo = getUserFriendlyError(new Error(data.error || 'Unknown error'), response.status);
+        const errorContent = formatErrorForChat(new Error(data.error || 'Unknown error'), response.status);
+        
         setMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: 'assistant', content: `Sorry, something went wrong. Please try again.` },
+          { 
+            id: crypto.randomUUID(), 
+            role: 'assistant', 
+            content: errorContent,
+            isError: true,
+          },
         ]);
+        
+        // Enable retry for recoverable errors
+        if ([ErrorCode.RATE_LIMITED, ErrorCode.AI_OVERLOADED, ErrorCode.NETWORK_TIMEOUT].includes(errorInfo.code)) {
+          setRetryMessage(userMessage);
+        }
       }
-    } catch {
+    } catch (error) {
+      // Handle network/fetch errors
+      const errorContent = formatErrorForChat(error);
+      const errorInfo = getUserFriendlyError(error);
+      
       setMessages((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), role: 'assistant', content: 'Unable to connect. Please check your connection and try again.' },
+        { 
+          id: crypto.randomUUID(), 
+          role: 'assistant', 
+          content: errorContent,
+          isError: true,
+        },
       ]);
+      
+      // Enable retry for network errors
+      if ([ErrorCode.NETWORK_OFFLINE, ErrorCode.NETWORK_TIMEOUT].includes(errorInfo.code)) {
+        setRetryMessage(userMessage);
+      }
     } finally {
       setIsLoading(false);
       textareaRef.current?.focus();
+    }
+  };
+
+  const handleRetry = () => {
+    if (retryMessage) {
+      // Remove the last error message
+      setMessages((prev) => prev.slice(0, -1));
+      sendMessage(retryMessage);
     }
   };
 
@@ -273,12 +325,14 @@ export default function Chat() {
               {/* Welcome card */}
               <div className="max-w-lg w-full">
                 <div className="text-center mb-8">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-xl shadow-emerald-200 mb-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-xl shadow-emerald-200 mb-4 animate-float animate-glow">
                     <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                   </div>
-                  <h2 className="text-2xl font-bold text-slate-800 mb-2">Welcome to Healthic</h2>
+                  <h2 className="text-2xl font-bold text-slate-800 mb-2">
+                    Welcome to <span className="gradient-text">Healthic</span>
+                  </h2>
                   <p className="text-slate-500">
                     I&apos;m your personal health coach. Tell me about a goal you want to achieve,
                     and I&apos;ll help you create an actionable plan.
@@ -292,9 +346,9 @@ export default function Chat() {
                     <button
                       key={i}
                       onClick={() => handleSuggestionClick(suggestion.text)}
-                      className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-emerald-100 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-100 transition-all duration-200 group"
+                      className={`w-full flex items-center gap-4 p-4 bg-white rounded-2xl border border-emerald-100 hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-100 transition-smooth hover-lift group animate-scale-in stagger-${i + 1}`}
                     >
-                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-100 transition-colors">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-100 transition-colors group-hover:scale-110 transition-smooth">
                         {suggestion.icon}
                       </div>
                       <span className="text-left text-slate-700 font-medium">{suggestion.text}</span>
@@ -311,39 +365,59 @@ export default function Chat() {
               {messages.map((message, index) => (
                 <div
                   key={message.id}
-                  className={`flex items-start gap-3 px-4 py-4 rounded-xl animate-fade-in ${
+                  className={`flex items-start gap-3 px-4 py-4 rounded-xl transition-smooth ${
                     message.role === 'user'
-                      ? 'bg-emerald-50/70 border-l-4 border-emerald-400'
-                      : 'bg-white'
+                      ? 'bg-emerald-50/70 border-l-4 border-emerald-400 animate-slide-in-right'
+                      : message.isError
+                      ? 'error-message animate-shake'
+                      : 'bg-white animate-slide-in-left'
                   }`}
-                  style={{ animationDelay: `${index * 0.05}s` }}
+                  style={{ animationDelay: `${Math.min(index * 0.05, 0.3)}s` }}
                 >
                   {/* Avatar */}
                   <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
                     message.role === 'user'
                       ? 'bg-emerald-200 text-emerald-700'
+                      : message.isError
+                      ? 'bg-red-100 text-red-600'
                       : 'bg-gradient-to-br from-emerald-400 to-teal-500'
                   }`}>
-                    {message.role === 'user' ? <UserIcon /> : <HeartIcon />}
+                    {message.role === 'user' ? <UserIcon /> : message.isError ? <AlertIcon /> : <HeartIcon />}
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <p className={`text-xs font-semibold mb-1 ${
-                      message.role === 'user' ? 'text-emerald-700' : 'text-teal-600'
+                      message.role === 'user' 
+                        ? 'text-emerald-700' 
+                        : message.isError
+                        ? 'text-red-600'
+                        : 'text-teal-600'
                     }`}>
-                      {message.role === 'user' ? 'You' : 'Healthic'}
+                      {message.role === 'user' ? 'You' : message.isError ? 'Oops!' : 'Healthic'}
                     </p>
                     <div
-                      className="message-content whitespace-pre-wrap leading-relaxed text-slate-700"
+                      className={`message-content whitespace-pre-wrap leading-relaxed ${
+                        message.isError ? 'text-red-700' : 'text-slate-700'
+                      }`}
                       dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
                     />
+                    {/* Retry button for error messages */}
+                    {message.isError && retryMessage && index === messages.length - 1 && (
+                      <button
+                        onClick={handleRetry}
+                        className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-smooth hover-lift"
+                      >
+                        <RefreshIcon />
+                        Try again
+                      </button>
+                    )}
                     {message.toolCalls && message.toolCalls.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
                         {message.toolCalls.map((tool, i) => (
                           <span
                             key={i}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-full px-3 py-1"
+                            className="tool-chip inline-flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-full px-3 py-1"
                           >
                             {getToolIcon(tool.name || '')}
                             {formatToolName(tool.name || 'action')}
@@ -357,7 +431,7 @@ export default function Chat() {
 
               {isLoading && (
                 <div className="flex items-start gap-3 px-4 py-4 rounded-xl bg-white animate-fade-in">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center animate-glow">
                     <svg className="w-4 h-4 text-white animate-pulse-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
@@ -365,10 +439,10 @@ export default function Chat() {
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-teal-600 mb-1">Healthic</p>
                     <div className="flex items-center gap-3">
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '300ms' }} />
+                      <div className="flex gap-1.5">
+                        <span className="typing-dot" style={{ animationDelay: '0ms' }} />
+                        <span className="typing-dot" style={{ animationDelay: '150ms' }} />
+                        <span className="typing-dot" style={{ animationDelay: '300ms' }} />
                       </div>
                       <span className="text-sm text-slate-400">Thinking...</span>
                     </div>

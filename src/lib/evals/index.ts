@@ -30,6 +30,18 @@ export {
   hallucinationTestCases 
 } from './hallucination';
 
+// Synthetic Test Scenarios
+export {
+  syntheticScenarios,
+  runScenario,
+  getScenariosByCategory,
+  listScenarios,
+  exportScenarioAsMarkdown,
+  type SyntheticScenario,
+  type ConversationTurn,
+  type ScenarioResult,
+} from './synthetic-scenarios';
+
 // Imports for runAllEvals
 import { runActionabilityEval } from './actionability';
 import { runPersonalizationEval } from './personalization';
