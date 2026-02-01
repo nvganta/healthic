@@ -119,6 +119,11 @@ export function parseError(error: unknown, statusCode?: number): ErrorCode {
     return ErrorCode.NETWORK_TIMEOUT;
   }
   
+  // Check navigator.onLine for any error if in browser (not just fetch errors)
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return ErrorCode.NETWORK_OFFLINE;
+  }
+  
   // Check status codes
   if (statusCode) {
     if (statusCode === 429) return ErrorCode.RATE_LIMITED;
