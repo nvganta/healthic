@@ -112,7 +112,8 @@ export const errorMessages: Record<ErrorCode, { title: string; message: string; 
 export function parseError(error: unknown, statusCode?: number): ErrorCode {
   // Check for network errors
   if (error instanceof TypeError && error.message.includes('fetch')) {
-    if (!navigator.onLine) {
+    // Check navigator.onLine only in browser context (not SSR)
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
       return ErrorCode.NETWORK_OFFLINE;
     }
     return ErrorCode.NETWORK_TIMEOUT;
