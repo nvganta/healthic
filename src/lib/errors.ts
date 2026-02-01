@@ -110,7 +110,7 @@ export const errorMessages: Record<ErrorCode, { title: string; message: string; 
  * Parse an error and return a user-friendly error code
  */
 export function parseError(error: unknown, statusCode?: number): ErrorCode {
-  // Check for network errors
+  // Check for network errors (fetch-specific)
   if (error instanceof TypeError && error.message.includes('fetch')) {
     // Check navigator.onLine only in browser context (not SSR)
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -119,18 +119,19 @@ export function parseError(error: unknown, statusCode?: number): ErrorCode {
     return ErrorCode.NETWORK_TIMEOUT;
   }
   
-  // Check navigator.onLine for any error if in browser (not just fetch errors)
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    return ErrorCode.NETWORK_OFFLINE;
-  }
-  
-  // Check status codes
+  // Check status codes first - they give more specific error info
   if (statusCode) {
     if (statusCode === 429) return ErrorCode.RATE_LIMITED;
     if (statusCode === 401) return ErrorCode.UNAUTHORIZED;
     if (statusCode === 400) return ErrorCode.INVALID_REQUEST;
     if (statusCode === 503) return ErrorCode.SERVER_UNAVAILABLE;
     if (statusCode >= 500) return ErrorCode.AI_OVERLOADED;
+  }
+  
+  // Check navigator.onLine for any error if in browser (not just fetch errors)
+  // But defer to status codes if provided, as they give more specific error info
+  if (!statusCode && typeof navigator !== 'undefined' && !navigator.onLine) {
+    return ErrorCode.NETWORK_OFFLINE;
   }
   
   // Check error messages for specific patterns
