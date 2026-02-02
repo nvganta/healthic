@@ -27,3 +27,21 @@ We evaluate things like:
 - Was the advice specific and actionable?
 - Did the agent use the context it retrieved?
 - Did the agent handle sensitive topics appropriately?
+
+## Roadmap
+
+### LLM-as-Judge for Goal Decomposition
+
+Currently, when a user sets a goal, the agent (Gemini) decomposes it into weekly targets and daily actions. This decomposition is stored directly without any validation — there's no check that weekly targets sum correctly, that pacing is progressive, or that the plan is safe and realistic.
+
+The proposed improvement is to add a second LLM call that acts as a judge, similar to how we already use LLM-as-judge for our Opik evaluations (actionability, safety, personalization). After the agent generates a decomposed plan but before it gets saved to the database, a reviewer LLM would evaluate the plan against criteria like:
+
+- **Mathematical consistency** — Do weekly target values sum to the overall goal target?
+- **Progressive pacing** — Does intensity build gradually rather than front-loading?
+- **Safety** — Are daily actions realistic and not dangerous (e.g., no extreme calorie restriction, no overtraining for beginners)?
+- **Completeness** — Does every week have daily actions? Are there gaps?
+- **Realism** — Is the timeline feasible for the goal type?
+
+If the plan fails review, the tool would return an error to the agent with specific feedback, prompting it to regenerate a better plan. This creates a self-correcting loop without requiring human intervention.
+
+This mirrors the eval pipeline we already have for chat responses, extending the same LLM-as-judge pattern to plan generation.

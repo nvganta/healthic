@@ -292,17 +292,17 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-3">
+            <div className="max-w-3xl mx-auto space-y-2">
               {messages.map((message, index) => (
                 <div
                   key={message.id}
-                  className={`flex items-start gap-3 animate-fade-in ${
+                  className={`flex items-end gap-2 animate-fade-in ${
                     message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
                   }`}
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
                   {/* Avatar */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
+                  <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${
                     message.role === 'user'
                       ? 'bg-emerald-200 text-emerald-700'
                       : 'bg-gradient-to-br from-emerald-400 to-teal-500'
@@ -311,16 +311,14 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
                   </div>
 
                   {/* Content bubble */}
-                  <div className={`max-w-[75%] min-w-0 px-4 py-3 rounded-2xl ${
+                  <div className={`max-w-[75%] w-fit min-w-0 px-4 py-2.5 ${
                     message.role === 'user'
-                      ? 'bg-emerald-50 border border-emerald-200'
-                      : 'bg-white border border-slate-100 shadow-sm'
+                      ? 'bg-emerald-50 border border-emerald-200 rounded-2xl rounded-br-md'
+                      : 'bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-md'
                   }`}>
-                    <p className={`text-xs font-semibold mb-1 ${
-                      message.role === 'user' ? 'text-emerald-700 text-right' : 'text-teal-600'
-                    }`}>
-                      {message.role === 'user' ? 'You' : 'Healthic'}
-                    </p>
+                    {message.role === 'assistant' && (
+                      <p className="text-xs font-semibold mb-1 text-teal-600">Healthic</p>
+                    )}
                     <div
                       className="message-content whitespace-pre-wrap leading-relaxed text-slate-700"
                       dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
@@ -330,15 +328,14 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
               ))}
 
               {isLoading && (
-                <div className="flex items-start gap-3 animate-fade-in">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                <div className="flex items-end gap-2 animate-fade-in">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                     <svg className="w-4 h-4 text-white animate-pulse-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                   </div>
-                  <div className="max-w-[75%] min-w-0 px-4 py-3 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                    <p className="text-xs font-semibold text-teal-600 mb-1">Healthic</p>
-                    <div className="flex items-center gap-3">
+                  <div className="w-fit min-w-0 px-4 py-2.5 rounded-2xl rounded-bl-md bg-white border border-slate-100 shadow-sm">
+                    <div className="flex items-center gap-2">
                       <div className="flex gap-1">
                         <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
                         <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />

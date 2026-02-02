@@ -76,9 +76,22 @@ const activityTypeIcons: Record<string, string> = {
 
 interface SidebarProps {
   onNewChat: () => void;
+  onOpenProfile: () => void;
+  onOpenSettings: () => void;
+  onOpenGoals: () => void;
+  onOpenActivity: () => void;
+  onOpenDashboard: () => void;
 }
 
-export default function Sidebar({ onNewChat }: SidebarProps) {
+export default function Sidebar({ onNewChat, onOpenProfile, onOpenSettings, onOpenGoals, onOpenActivity, onOpenDashboard }: SidebarProps) {
+  const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    fetch('/api/user/settings')
+      .then(res => res.json())
+      .then(data => setUserName(data.settings?.name || 'Health User'))
+      .catch(() => setUserName('Health User'));
+  }, []);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoadingGoals, setIsLoadingGoals] = useState(true);
@@ -126,133 +139,98 @@ export default function Sidebar({ onNewChat }: SidebarProps) {
 
   return (
     <aside className="w-72 h-screen bg-white border-r border-slate-200 flex flex-col">
-      {/* Logo */}
-      <div className="p-4 border-b border-slate-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-200">
-            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800">Healthic</h1>
-            <p className="text-xs text-slate-500">AI Health Coach</p>
-          </div>
+      {/* Profile */}
+      <button
+        onClick={onOpenProfile}
+        className="p-4 border-b border-slate-100 flex items-center gap-3 hover:bg-emerald-50/50 transition-colors group w-full text-left"
+      >
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-200 flex-shrink-0">
+          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
         </div>
-      </div>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-bold text-slate-800 truncate">{userName || 'Health User'}</h1>
+          <p className="text-xs text-slate-400 group-hover:text-emerald-600 transition-colors">View profile</p>
+        </div>
+        <svg className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
 
-      {/* New Chat Button */}
-      <div className="p-4">
+      {/* Talk to Agent Button */}
+      <div className="p-4 space-y-2">
         <button
           onClick={onNewChat}
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-medium hover:from-emerald-600 hover:to-teal-600 transition-all shadow-md shadow-emerald-200 hover:shadow-lg"
         >
-          <PlusIcon />
-          New Chat
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Talk to Agent
+        </button>
+        <button
+          onClick={onOpenDashboard}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 hover:border-slate-300 transition-all"
+        >
+          <ChartIcon />
+          Dashboard
         </button>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-6">
         {/* Goals Section */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={onOpenGoals}
+          className="w-full text-left p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group"
+        >
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-slate-700 font-semibold">
               <TargetIcon />
               <span>My Goals</span>
-            </div>
-            <button
-              onClick={refreshData}
-              className="p-1 text-slate-400 hover:text-emerald-600 transition-colors"
-              title="Refresh"
-            >
-              <RefreshIcon />
-            </button>
-          </div>
-
-          {isLoadingGoals ? (
-            <div className="space-y-2">
-              {[1, 2].map((i) => (
-                <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />
-              ))}
-            </div>
-          ) : goals.length === 0 ? (
-            <div className="text-center py-6 px-4 bg-slate-50 rounded-xl">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 flex items-center justify-center">
-                <TargetIcon />
-              </div>
-              <p className="text-sm text-slate-500">No goals yet</p>
-              <p className="text-xs text-slate-400 mt-1">Start a chat to set your first goal</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {goals.slice(0, 3).map((goal) => (
-                <div
-                  key={goal.id}
-                  className="p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700 truncate">{goal.title}</p>
-                      {goal.targetValue && (
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Target: {goal.targetValue} {goal.targetUnit}
-                        </p>
-                      )}
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${goalTypeColors[goal.goalType] || goalTypeColors.other}`}>
-                      {goal.goalType.replace('_', ' ')}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {goals.length > 3 && (
-                <p className="text-xs text-center text-slate-400 pt-1">
-                  +{goals.length - 3} more goals
-                </p>
+              {!isLoadingGoals && goals.length > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                  {goals.length}
+                </span>
               )}
             </div>
+            <svg className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+          {!isLoadingGoals && (
+            <p className="text-xs text-slate-400 mt-1 ml-7">
+              {goals.length === 0 ? 'Tap to add your first goal' : `${goals.length} active goal${goals.length !== 1 ? 's' : ''}`}
+            </p>
           )}
-        </div>
+        </button>
 
         {/* Recent Activity Section */}
-        <div>
-          <div className="flex items-center gap-2 text-slate-700 font-semibold mb-3">
-            <ActivityIcon />
-            <span>Recent Activity</span>
+        <button
+          onClick={onOpenActivity}
+          className="w-full text-left p-3 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-700 font-semibold">
+              <ActivityIcon />
+              <span>Recent Activity</span>
+              {!isLoadingActivities && activities.length > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium">
+                  {activities.length}
+                </span>
+              )}
+            </div>
+            <svg className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </div>
-
-          {isLoadingActivities ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />
-              ))}
-            </div>
-          ) : activities.length === 0 ? (
-            <div className="text-center py-6 px-4 bg-slate-50 rounded-xl">
-              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-slate-100 flex items-center justify-center">
-                <ActivityIcon />
-              </div>
-              <p className="text-sm text-slate-500">No activity logged</p>
-              <p className="text-xs text-slate-400 mt-1">Tell me what you did today</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {activities.slice(0, 5).map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl"
-                >
-                  <span className="text-lg">{activityTypeIcons[activity.type] || '📝'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-700 truncate">{activity.data.value}</p>
-                    <p className="text-xs text-slate-400">{activity.type}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {!isLoadingActivities && (
+            <p className="text-xs text-slate-400 mt-1 ml-7">
+              {activities.length === 0 ? 'Tap to log your first activity' : `${activities.length} activit${activities.length !== 1 ? 'ies' : 'y'} this week`}
+            </p>
           )}
-        </div>
+        </button>
 
         {/* Stats Overview */}
         <div>
@@ -275,7 +253,7 @@ export default function Sidebar({ onNewChat }: SidebarProps) {
 
       {/* Settings */}
       <div className="p-4 border-t border-slate-100">
-        <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
+        <button onClick={onOpenSettings} className="w-full flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
           <SettingsIcon />
           <span className="text-sm font-medium">Settings</span>
         </button>
