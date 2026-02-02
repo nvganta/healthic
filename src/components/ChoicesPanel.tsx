@@ -18,6 +18,7 @@ interface ChoicesPanelProps {
 export default function ChoicesPanel({ title, questions, onSubmit, onDismiss }: ChoicesPanelProps) {
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [otherTexts, setOtherTexts] = useState<Record<string, string>>({});
+  const [addMoreText, setAddMoreText] = useState('');
 
   const allAnswered = questions.every((q) => {
     const sel = selections[q.id];
@@ -40,6 +41,9 @@ export default function ChoicesPanel({ title, questions, onSubmit, onDismiss }: 
       const answer = sel === 'Other' ? otherTexts[q.id] : sel;
       return `${q.question}: ${answer}`;
     });
+    if (addMoreText.trim()) {
+      answerParts.push(`Additional info: ${addMoreText.trim()}`);
+    }
     onSubmit(answerParts.join('\n'));
   };
 
@@ -89,6 +93,18 @@ export default function ChoicesPanel({ title, questions, onSubmit, onDismiss }: 
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Add more */}
+      <div className="px-4 pb-4">
+        <p className="text-sm font-medium text-slate-700 mb-2">Add more</p>
+        <textarea
+          value={addMoreText}
+          onChange={(e) => setAddMoreText(e.target.value)}
+          placeholder="Anything else you'd like to share..."
+          rows={2}
+          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent placeholder:text-slate-400 resize-none"
+        />
       </div>
 
       {/* Submit button */}

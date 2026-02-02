@@ -8,6 +8,9 @@ import { evaluateActionability } from '@/lib/evals/actionability';
 import { evaluateSafety } from '@/lib/evals/safety';
 import { evaluatePersonalization } from '@/lib/evals/personalization';
 import { extractAndSavePreferences, getUserPreferences } from '@/lib/extract-preferences';
+import { evaluateGoalDecomposition } from '@/lib/evals/goal-decomposition';
+import { evaluateQuestionQuality } from '@/lib/evals/question-quality';
+import { extractQuestionsFromResponse } from '@/lib/extract-questions';
 import { getOrCreateConversation, saveMessage } from '@/agent/tools/conversation-helpers';
 import { getOrCreateUser } from '@/agent/tools/user-helper';
 
@@ -231,24 +234,76 @@ export async function POST(request: NextRequest) {
     // Run evaluations asynchronously (don't block response)
     runEvaluationsAsync(message, responseText).catch(console.error);
 
+    // Run goal decomposition eval if decompose_goal was called (don't block response)
+    const saveGoalCall = toolCalls.find((tc) => tc.name === 'save_goal');
+    const decomposeCall = toolCalls.find((tc) => tc.name === 'decompose_goal');
+    if (decomposeCall && saveGoalCall) {
+      const goalArgs = saveGoalCall.args as Record<string, unknown>;
+      const decomposeArgs = decomposeCall.args as Record<string, unknown>;
+      evaluateGoalDecomposition({
+        originalGoal: (goalArgs.title as string) || 'Unknown',
+        userContext: `Type: ${(goalArgs.goalType as string) || 'other'}, Target: ${(goalArgs.targetValue as string | number) || ''} ${(goalArgs.targetUnit as string) || ''}, Date: ${(goalArgs.targetDate as string) || 'not set'}`,
+        decomposition: JSON.stringify(decomposeArgs),
+      }).then((result) => {
+        console.log('📊 Goal Decomposition Eval:', {
+          score: result.score,
+          dimensions: result.dimension_scores,
+          strengths: result.strengths,
+          weaknesses: result.weaknesses,
+        });
+        if (result.score < 0.5) {
+          console.warn('⚠️ Low goal decomposition quality:', result.reason);
+        }
+      }).catch(console.error);
+    }
+
     // Extract and save user preferences in background (don't block response)
     extractAndSavePreferences(message, userId).catch(console.error);
 
-    // Extract choicesData if agent used present_choices tool
+    // Extract choicesData: first check if agent used present_choices tool
     const choicesCall = toolCalls.find((tc) => tc.name === 'present_choices');
-    const choicesData = choicesCall
-      ? {
-          title: (choicesCall.args as Record<string, unknown>).title as string,
-          questions: ((choicesCall.args as Record<string, unknown>).questions as Array<{
-            id: string;
-            question: string;
-            options: string[];
-          }>).map((q) => ({
-            ...q,
-            options: [...q.options, 'Other'],
-          })),
+    let choicesData;
+
+    if (choicesCall) {
+      choicesData = {
+        title: (choicesCall.args as Record<string, unknown>).title as string,
+        questions: ((choicesCall.args as Record<string, unknown>).questions as Array<{
+          id: string;
+          question: string;
+          options: string[];
+        }>).map((q) => ({
+          ...q,
+          options: [...q.options, 'Other'],
+        })),
+      };
+    } else {
+      // Post-process: extract questions from agent's text response
+      const extracted = await extractQuestionsFromResponse(responseText);
+      if (extracted) {
+        choicesData = {
+          title: extracted.title,
+          questions: extracted.questions,
+        };
+      }
+    }
+
+    // Run question quality eval if choices were generated (don't block response)
+    if (choicesData) {
+      evaluateQuestionQuality({
+        input: message,
+        output: responseText,
+        questions: choicesData,
+      }).then((result) => {
+        console.log('📊 Question Quality Eval:', {
+          score: result.score,
+          criteria: result.criteria,
+          concerns: result.concerns,
+        });
+        if (result.score < 0.5) {
+          console.warn('⚠️ Low question quality:', result.reason);
         }
-      : undefined;
+      }).catch(console.error);
+    }
 
     return NextResponse.json({
       response: responseText,

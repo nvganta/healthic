@@ -19,16 +19,15 @@ interface ChoicesData {
   }>;
 }
 
+interface ChatProps {
+  isNewChat?: boolean;
+  loadConversationId?: string | null;
+}
+
 // Icons
 const SendIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-  </svg>
-);
-
-const SparkleIcon = () => (
-  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-    <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" />
   </svg>
 );
 
@@ -62,31 +61,15 @@ const HeartIcon = () => (
   </svg>
 );
 
-// Format tool name to be more readable
-const formatToolName = (name: string) => {
-  return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-};
-
-// Get icon for tool
-const getToolIcon = (toolName: string) => {
-  if (toolName.includes('goal')) return <TargetIcon />;
-  if (toolName.includes('activity')) return <ActivityIcon />;
-  if (toolName.includes('sleep')) return <MoonIcon />;
-  return <SparkleIcon />;
-};
-
 // Simple markdown-like formatting
 const formatMessage = (content: string) => {
-  // Convert **bold** to <strong>
   let formatted = content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Convert *italic* to <em>
   formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  // Convert bullet points
   formatted = formatted.replace(/^\* /gm, '&bull; ');
   return formatted;
 };
 
-export default function Chat() {
+export default function Chat({ isNewChat = false, loadConversationId = null }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -120,8 +103,16 @@ export default function Chat() {
   // Load conversation history on mount
   useEffect(() => {
     async function loadHistory() {
+      if (isNewChat) {
+        setIsLoadingHistory(false);
+        return;
+      }
+
       try {
-        const res = await fetch('/api/conversations');
+        const url = loadConversationId
+          ? `/api/conversations?id=${loadConversationId}`
+          : '/api/conversations';
+        const res = await fetch(url);
         const data = await res.json();
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages);
@@ -134,7 +125,7 @@ export default function Chat() {
       }
     }
     loadHistory();
-  }, []);
+  }, [isNewChat, loadConversationId]);
 
   // Save a message to the database
   const saveMessage = async (role: 'user' | 'assistant', content: string, toolCalls?: Array<{ name: string; args: unknown }>) => {
@@ -160,14 +151,12 @@ export default function Chat() {
     const userMessage = text;
     const userMsgId = crypto.randomUUID();
     if (!messageText) setInput('');
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userMessage }]);
     setIsLoading(true);
 
-    // Save user message to database
     saveMessage('user', userMessage);
 
     try {
@@ -196,16 +185,14 @@ export default function Chat() {
         if (data.sessionId) {
           setSessionId(data.sessionId);
         }
-        // Show choices panel if agent used present_choices tool
         if (data.choicesData) {
           setActiveChoices(data.choicesData);
         }
-        // Save assistant message to database
         saveMessage('assistant', assistantContent, data.toolCalls);
       } else {
         setMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: 'assistant', content: `Sorry, something went wrong. Please try again.` },
+          { id: crypto.randomUUID(), role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
         ]);
       }
     } catch {
@@ -270,7 +257,6 @@ export default function Chat() {
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full animate-fade-in">
-              {/* Welcome card */}
               <div className="max-w-lg w-full">
                 <div className="text-center mb-8">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-xl shadow-emerald-200 mb-4">
@@ -285,7 +271,6 @@ export default function Chat() {
                   </p>
                 </div>
 
-                {/* Suggestion cards */}
                 <div className="space-y-3">
                   <p className="text-sm font-medium text-slate-400 text-center">Try one of these:</p>
                   {suggestions.map((suggestion, i) => (
@@ -307,19 +292,17 @@ export default function Chat() {
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-1">
+            <div className="max-w-3xl mx-auto space-y-2">
               {messages.map((message, index) => (
                 <div
                   key={message.id}
-                  className={`flex items-start gap-3 px-4 py-4 rounded-xl animate-fade-in ${
-                    message.role === 'user'
-                      ? 'bg-emerald-50/70 border-l-4 border-emerald-400'
-                      : 'bg-white'
+                  className={`flex items-end gap-2 animate-fade-in ${
+                    message.role === 'user' ? 'flex-row-reverse' : 'flex-row'
                   }`}
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
                   {/* Avatar */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-0.5 ${
+                  <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${
                     message.role === 'user'
                       ? 'bg-emerald-200 text-emerald-700'
                       : 'bg-gradient-to-br from-emerald-400 to-teal-500'
@@ -327,44 +310,32 @@ export default function Chat() {
                     {message.role === 'user' ? <UserIcon /> : <HeartIcon />}
                   </div>
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-semibold mb-1 ${
-                      message.role === 'user' ? 'text-emerald-700' : 'text-teal-600'
-                    }`}>
-                      {message.role === 'user' ? 'You' : 'Healthic'}
-                    </p>
+                  {/* Content bubble */}
+                  <div className={`max-w-[75%] w-fit min-w-0 px-4 py-2.5 ${
+                    message.role === 'user'
+                      ? 'bg-emerald-50 border border-emerald-200 rounded-2xl rounded-br-md'
+                      : 'bg-white border border-slate-100 shadow-sm rounded-2xl rounded-bl-md'
+                  }`}>
+                    {message.role === 'assistant' && (
+                      <p className="text-xs font-semibold mb-1 text-teal-600">Healthic</p>
+                    )}
                     <div
                       className="message-content whitespace-pre-wrap leading-relaxed text-slate-700"
                       dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
                     />
-                    {message.toolCalls && message.toolCalls.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
-                        {message.toolCalls.map((tool, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center gap-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-full px-3 py-1"
-                          >
-                            {getToolIcon(tool.name || '')}
-                            {formatToolName(tool.name || 'action')}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
 
               {isLoading && (
-                <div className="flex items-start gap-3 px-4 py-4 rounded-xl bg-white animate-fade-in">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                <div className="flex items-end gap-2 animate-fade-in">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                     <svg className="w-4 h-4 text-white animate-pulse-soft" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-teal-600 mb-1">Healthic</p>
-                    <div className="flex items-center gap-3">
+                  <div className="w-fit min-w-0 px-4 py-2.5 rounded-2xl rounded-bl-md bg-white border border-slate-100 shadow-sm">
+                    <div className="flex items-center gap-2">
                       <div className="flex gap-1">
                         <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '0ms' }} />
                         <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce-soft" style={{ animationDelay: '150ms' }} />
@@ -416,7 +387,6 @@ export default function Chat() {
       {/* Choices panel (right side) */}
       {activeChoices && (
         <>
-          {/* Mobile backdrop */}
           <div className="md:hidden fixed inset-0 bg-black/30 z-40" onClick={handleChoicesDismiss} />
           <ChoicesPanel
             title={activeChoices.title}
