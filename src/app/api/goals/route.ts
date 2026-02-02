@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-
-// Helper to get or create user
-async function getOrCreateUser(userId: string = 'default_user') {
-  const existingUser = await sql`SELECT * FROM users WHERE email = ${userId}`;
-  if (existingUser.length > 0) {
-    return existingUser[0];
-  }
-
-  const newUser = await sql`
-    INSERT INTO users (email, name)
-    VALUES (${userId}, 'Health User')
-    RETURNING *
-  `;
-  return newUser[0];
-}
+import { getOrCreateUser } from '@/agent/tools/user-helper';
 
 export async function GET() {
   try {
