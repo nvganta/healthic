@@ -24,8 +24,8 @@ interface EvalsData {
   personalization: EvalCategory;
   safety: EvalCategory;
   summary: {
-    totalPassed: number;
-    totalFailed: number;
+    passed: number;
+    failed: number;
     passRate: number;
   };
 }
@@ -65,6 +65,7 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
 
   useEffect(() => {
     runEvals(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getScoreColor = (score: number) => {
@@ -153,8 +154,8 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
               Opik Dashboard
             </a>
             <button
-              onClick={runEvals}
-              disabled={isRunning}
+              onClick={() => runEvals()}
+              disabled={isRunning || isLoading}
               className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 rounded-lg transition-all flex items-center gap-2 disabled:opacity-50"
             >
               {isRunning ? (
@@ -216,7 +217,7 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
                   {data.summary.passRate.toFixed(0)}%
                 </p>
                 <p className="text-xs text-slate-400 mt-1">
-                  {data.summary.totalPassed} / {data.summary.totalPassed + data.summary.totalFailed} tests
+                  {data.summary.passed} / {data.summary.passed + data.summary.failed} tests
                 </p>
               </div>
 
