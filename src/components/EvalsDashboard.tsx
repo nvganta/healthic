@@ -40,23 +40,12 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
-  const fetchEvals = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/evals');
-      const d = await res.json();
-      if (!d.success) throw new Error(d.error || 'Failed to fetch evals');
-      setData(d);
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setIsLoading(false);
+  const runEvals = async (isInitialLoad = false) => {
+    if (isInitialLoad) {
+      setIsLoading(true);
+    } else {
+      setIsRunning(true);
     }
-  };
-
-  const runEvals = async () => {
-    setIsRunning(true);
     setError(null);
     try {
       const res = await fetch('/api/evals');
@@ -66,12 +55,13 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
     } catch (err) {
       setError(String(err));
     } finally {
+      setIsLoading(false);
       setIsRunning(false);
     }
   };
 
   useEffect(() => {
-    fetchEvals();
+    runEvals(true);
   }, []);
 
   const getScoreColor = (score: number) => {
