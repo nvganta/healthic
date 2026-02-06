@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Chat from '@/components/Chat';
 import Sidebar from '@/components/Sidebar';
 import Dashboard from '@/components/Dashboard';
+import EvalsDashboard from '@/components/EvalsDashboard';
 import ProfileModal from '@/components/ProfileModal';
 import SettingsModal from '@/components/SettingsModal';
 import GoalsModal from '@/components/GoalsModal';
@@ -28,7 +29,7 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isGoalsOpen, setIsGoalsOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
-  const [activeView, setActiveView] = useState<'chat' | 'dashboard'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'dashboard' | 'evals'>('chat');
 
   const handleNewChat = () => {
     setIsNewChat(true);
@@ -63,7 +64,7 @@ export default function Home() {
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar - Desktop */}
       <div className={`hidden md:block transition-all duration-300 ${isSidebarOpen ? 'w-72' : 'w-0'}`}>
-        {isSidebarOpen && <Sidebar onNewChat={handleNewChat} onOpenProfile={() => setIsProfileOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} onOpenGoals={() => setIsGoalsOpen(true)} onOpenActivity={() => setIsActivityOpen(true)} onOpenDashboard={() => setActiveView('dashboard')} />}
+        {isSidebarOpen && <Sidebar onNewChat={handleNewChat} onOpenProfile={() => setIsProfileOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} onOpenGoals={() => setIsGoalsOpen(true)} onOpenActivity={() => setIsActivityOpen(true)} onOpenDashboard={() => setActiveView('dashboard')} onOpenEvals={() => setActiveView('evals')} />}
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -80,7 +81,7 @@ export default function Home() {
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <Sidebar onNewChat={handleNewChat} onOpenProfile={() => setIsProfileOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} onOpenGoals={() => setIsGoalsOpen(true)} onOpenActivity={() => setIsActivityOpen(true)} onOpenDashboard={() => { setActiveView('dashboard'); setIsSidebarOpen(false); }} />
+        <Sidebar onNewChat={handleNewChat} onOpenProfile={() => setIsProfileOpen(true)} onOpenSettings={() => setIsSettingsOpen(true)} onOpenGoals={() => setIsGoalsOpen(true)} onOpenActivity={() => setIsActivityOpen(true)} onOpenDashboard={() => { setActiveView('dashboard'); setIsSidebarOpen(false); }} onOpenEvals={() => { setActiveView('evals'); setIsSidebarOpen(false); }} />
       </div>
 
       {/* Main Content */}
@@ -211,6 +212,8 @@ export default function Home() {
         <main className="flex-1 overflow-hidden">
           {activeView === 'dashboard' ? (
             <Dashboard onGoToChat={() => setActiveView('chat')} />
+          ) : activeView === 'evals' ? (
+            <EvalsDashboard onBack={() => setActiveView('chat')} />
           ) : (
             <Chat key={chatKey} isNewChat={isNewChat} loadConversationId={activeConversationId} />
           )}

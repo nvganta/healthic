@@ -74,6 +74,12 @@ const activityTypeIcons: Record<string, string> = {
   stress: '🧘',
 };
 
+const EvalsIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+  </svg>
+);
+
 interface SidebarProps {
   onNewChat: () => void;
   onOpenProfile: () => void;
@@ -81,9 +87,10 @@ interface SidebarProps {
   onOpenGoals: () => void;
   onOpenActivity: () => void;
   onOpenDashboard: () => void;
+  onOpenEvals?: () => void;
 }
 
-export default function Sidebar({ onNewChat, onOpenProfile, onOpenSettings, onOpenGoals, onOpenActivity, onOpenDashboard }: SidebarProps) {
+export default function Sidebar({ onNewChat, onOpenProfile, onOpenSettings, onOpenGoals, onOpenActivity, onOpenDashboard, onOpenEvals }: SidebarProps) {
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
@@ -176,6 +183,15 @@ export default function Sidebar({ onNewChat, onOpenProfile, onOpenSettings, onOp
           <ChartIcon />
           Dashboard
         </button>
+        {onOpenEvals && (
+          <button
+            onClick={onOpenEvals}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-indigo-200 text-indigo-600 rounded-xl font-medium hover:bg-indigo-50 hover:border-indigo-300 transition-all"
+          >
+            <EvalsIcon />
+            Evals & Metrics
+          </button>
+        )}
       </div>
 
       {/* Scrollable Content */}
