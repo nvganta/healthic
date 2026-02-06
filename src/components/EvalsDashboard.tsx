@@ -326,7 +326,7 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
               Run the evaluations to see quality metrics for your health coach.
             </p>
             <button
-              onClick={runEvals}
+              onClick={() => runEvals()}
               className="inline-block mt-6 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl hover:from-indigo-600 hover:to-purple-600 transition-all"
             >
               Run Evaluations
