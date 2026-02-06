@@ -18,25 +18,16 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
 
-# Load environment variables from .env.local
-def load_env():
-    env_path = Path(__file__).parent.parent / '.env.local'
-    if env_path.exists():
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    value = value.strip().strip('"').strip("'")
-                    if key and key not in os.environ:
-                        os.environ[key] = value
-        print('✓ Loaded environment from .env.local\n')
-    else:
-        print('❌ .env.local not found')
-        sys.exit(1)
-
-load_env()
+# Load environment variables from .env.local using python-dotenv
+env_path = Path(__file__).parent.parent / '.env.local'
+if env_path.exists():
+    load_dotenv(env_path)
+    print('✓ Loaded environment from .env.local\n')
+else:
+    print('❌ .env.local not found')
+    sys.exit(1)
 
 # Verify required env vars
 if not os.getenv('OPIK_API_KEY'):

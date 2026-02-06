@@ -49,6 +49,9 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
     setError(null);
     try {
       const res = await fetch('/api/evals');
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
       const d = await res.json();
       if (!d.success) throw new Error(d.error || 'Failed to run evals');
       setData(d);
@@ -220,7 +223,8 @@ export default function EvalsDashboard({ onBack }: EvalsDashboardProps) {
               {['actionability', 'personalization', 'safety'].map((type) => {
                 const category = data[type as keyof EvalsData] as EvalCategory;
                 const colors = getCategoryColor(type);
-                const passRate = category.passed / (category.passed + category.failed) * 100;
+                const total = category.passed + category.failed;
+                const passRate = total > 0 ? (category.passed / total) * 100 : 0;
                 return (
                   <div key={type} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                     <div className="flex items-center gap-3 mb-3">
