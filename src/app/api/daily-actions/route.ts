@@ -124,9 +124,11 @@ export async function PATCH(request: NextRequest) {
         }
       }
 
-      // Check if all daily actions are now complete
+      // Check if all daily actions are now complete (awards bonus points internally)
       const allComplete = await checkDailyCompletionBadge(user.id, a.action_date);
       if (allComplete) {
+        // Note: checkDailyCompletionBadge already awards POINTS.COMPLETE_ALL_DAILY internally
+        // We just report the total points awarded for the API response
         pointsAwarded += POINTS.COMPLETE_ALL_DAILY;
       }
     }

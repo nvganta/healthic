@@ -13,6 +13,7 @@ import { evaluateQuestionQuality } from '@/lib/evals/question-quality';
 import { extractQuestionsFromResponse } from '@/lib/extract-questions';
 import { getOrCreateConversation, saveMessage, countUserMessages } from '@/agent/tools/conversation-helpers';
 import { getOrCreateUser } from '@/agent/tools/user-helper';
+import { parseTargetDate } from '@/agent/tools/save-goal';
 
 const APP_NAME = 'healthic';
 const runner = new InMemoryRunner({ agent: healthAgent, appName: APP_NAME });
@@ -318,15 +319,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if this response contains a plan proposal (save_goal + decompose_goal both called)
-    // Look for proposal data in tool call args
+    // Look for proposal data in tool call args and apply same normalization as tools
     let proposedPlan = null;
     if (saveGoalCall && decomposeCall) {
       const goalArgs = saveGoalCall.args as Record<string, unknown>;
       const decomposeArgs = decomposeCall.args as Record<string, unknown>;
 
       // Check if these are proposal mode calls
-      // We construct the proposal from the tool arguments since tools return proposals now
+      // Apply the same normalization that save_goal tool does (e.g., parseTargetDate for relative dates)
       if (goalArgs && decomposeArgs.weeklyTargets) {
+        // Normalize targetDate using the same logic as save_goal tool
+        const normalizedTargetDate = parseTargetDate(goalArgs.targetDate as string | undefined);
+
         proposedPlan = {
           goal: {
             title: goalArgs.title as string,
@@ -334,7 +338,7 @@ export async function POST(request: NextRequest) {
             goalType: goalArgs.goalType as string,
             targetValue: goalArgs.targetValue as number | undefined,
             targetUnit: goalArgs.targetUnit as string | undefined,
-            targetDate: goalArgs.targetDate as string | undefined,
+            targetDate: normalizedTargetDate ?? undefined,
           },
           weeklyTargets: decomposeArgs.weeklyTargets as Array<{
             weekNumber: number;
