@@ -73,7 +73,7 @@ export type BadgeId = keyof typeof BADGES;
  * Get the user's current level based on total points
  */
 export function getLevelFromPoints(points: number) {
-  let currentLevel = LEVELS[0];
+  let currentLevel: (typeof LEVELS)[number] = LEVELS[0];
   for (const level of LEVELS) {
     if (points >= level.pointsRequired) {
       currentLevel = level;
