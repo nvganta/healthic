@@ -104,7 +104,7 @@ export function getLevelFromPoints(points: number) {
 }
 
 /**
- * Award points to a user
+ * Award points to a user (atomic operation to prevent race conditions)
  */
 export async function awardPoints(
   userId: string,
@@ -112,24 +112,21 @@ export async function awardPoints(
   reason: string,
   referenceId?: string
 ): Promise<{ newTotal: number; levelUp: boolean; newLevel?: typeof LEVELS[number] }> {
-  // Get current points
+  // Atomically update points and return new total (prevents race conditions)
   const [user] = await sql`
-    SELECT total_points FROM users WHERE id = ${userId}
+    UPDATE users
+    SET total_points = COALESCE(total_points, 0) + ${points}, updated_at = NOW()
+    WHERE id = ${userId}
+    RETURNING total_points as new_total
   `;
 
-  const currentPoints = user?.total_points || 0;
-  const newTotal = currentPoints + points;
+  const newTotal = user?.new_total || points;
+  const currentPoints = newTotal - points;
 
   // Record points history
   await sql`
     INSERT INTO points_history (user_id, points, reason, reference_id)
     VALUES (${userId}, ${points}, ${reason}, ${referenceId || null})
-  `;
-
-  // Update user total points
-  await sql`
-    UPDATE users SET total_points = ${newTotal}, updated_at = NOW()
-    WHERE id = ${userId}
   `;
 
   // Check for level up
@@ -238,21 +235,23 @@ export async function getGamificationStats(userId: string) {
 }
 
 /**
- * Update user streak
+ * Update user streak (atomic operation to prevent race conditions)
  */
 export async function updateStreak(userId: string, hasActivityToday: boolean) {
-  const [user] = await sql`
-    SELECT current_streak, longest_streak FROM users WHERE id = ${userId}
-  `;
-
-  let currentStreak = user?.current_streak || 0;
-  let longestStreak = user?.longest_streak || 0;
+  let result;
 
   if (hasActivityToday) {
-    currentStreak += 1;
-    if (currentStreak > longestStreak) {
-      longestStreak = currentStreak;
-    }
+    // Atomically increment streak and update longest if needed
+    [result] = await sql`
+      UPDATE users SET
+        current_streak = COALESCE(current_streak, 0) + 1,
+        longest_streak = GREATEST(COALESCE(longest_streak, 0), COALESCE(current_streak, 0) + 1),
+        updated_at = NOW()
+      WHERE id = ${userId}
+      RETURNING current_streak, longest_streak
+    `;
+
+    const currentStreak = result?.current_streak || 1;
 
     // Check for streak badges
     if (currentStreak >= 7) {
@@ -262,18 +261,20 @@ export async function updateStreak(userId: string, hasActivityToday: boolean) {
       await awardBadge(userId, 'streak_30');
     }
   } else {
-    currentStreak = 0;
+    // Reset streak to 0
+    [result] = await sql`
+      UPDATE users SET
+        current_streak = 0,
+        updated_at = NOW()
+      WHERE id = ${userId}
+      RETURNING current_streak, longest_streak
+    `;
   }
 
-  await sql`
-    UPDATE users SET
-      current_streak = ${currentStreak},
-      longest_streak = ${longestStreak},
-      updated_at = NOW()
-    WHERE id = ${userId}
-  `;
-
-  return { currentStreak, longestStreak };
+  return {
+    currentStreak: result?.current_streak || 0,
+    longestStreak: result?.longest_streak || 0,
+  };
 }
 
 /**

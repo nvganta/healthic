@@ -37,73 +37,86 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Start a transaction-like flow (save goal first, then weekly targets)
-    // Save the goal
-    const [savedGoal] = await sql`
-      INSERT INTO goals (user_id, title, description, goal_type, target_value, target_unit, target_date)
-      VALUES (
-        ${user.id},
-        ${goal.title},
-        ${goal.description},
-        ${goal.goalType},
-        ${goal.targetValue ?? null},
-        ${goal.targetUnit ?? null},
-        ${goal.targetDate ?? null}
-      )
-      RETURNING *
-    `;
-
-    console.log('Goal saved:', savedGoal.id);
-
-    // Save weekly targets and daily actions
+    // Use transaction for atomicity
+    let savedGoal;
     const savedTargets = [];
     let totalActionsCreated = 0;
 
-    for (const target of weeklyTargets) {
-      const [weeklyTarget] = await sql`
-        INSERT INTO weekly_targets (goal_id, week_start, target_value, notes)
+    try {
+      // Begin transaction
+      await sql`BEGIN`;
+
+      // Save the goal
+      [savedGoal] = await sql`
+        INSERT INTO goals (user_id, title, description, goal_type, target_value, target_unit, target_date)
         VALUES (
-          ${savedGoal.id},
-          ${target.weekStart},
-          ${target.targetValue},
-          ${JSON.stringify({
-            weekNumber: target.weekNumber,
-            description: target.targetDescription,
-            dailyActions: target.dailyActions,
-          })}
+          ${user.id},
+          ${goal.title},
+          ${goal.description},
+          ${goal.goalType},
+          ${goal.targetValue ?? null},
+          ${goal.targetUnit ?? null},
+          ${goal.targetDate ?? null}
         )
         RETURNING *
       `;
 
-      // Create daily_actions for each day of the week
-      const weekStart = new Date(target.weekStart);
-      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-        const actionDate = new Date(weekStart);
-        actionDate.setDate(actionDate.getDate() + dayOffset);
-        const dateStr = actionDate.toISOString().split('T')[0];
+      console.log('Goal saved:', savedGoal.id);
 
-        for (const actionText of target.dailyActions) {
-          await sql`
-            INSERT INTO daily_actions (
-              weekly_target_id, user_id, goal_id, action_text, action_date
-            ) VALUES (
-              ${weeklyTarget.id},
-              ${user.id},
-              ${savedGoal.id},
-              ${actionText},
-              ${dateStr}
-            )
-          `;
-          totalActionsCreated++;
+      // Save weekly targets and daily actions
+      for (const target of weeklyTargets) {
+        const [weeklyTarget] = await sql`
+          INSERT INTO weekly_targets (goal_id, week_start, target_value, notes)
+          VALUES (
+            ${savedGoal.id},
+            ${target.weekStart},
+            ${target.targetValue},
+            ${JSON.stringify({
+              weekNumber: target.weekNumber,
+              description: target.targetDescription,
+              dailyActions: target.dailyActions,
+            })}
+          )
+          RETURNING *
+        `;
+
+        // Create daily_actions for each day of the week
+        const weekStart = new Date(target.weekStart);
+        for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+          const actionDate = new Date(weekStart);
+          actionDate.setDate(actionDate.getDate() + dayOffset);
+          const dateStr = actionDate.toISOString().split('T')[0];
+
+          for (const actionText of target.dailyActions) {
+            await sql`
+              INSERT INTO daily_actions (
+                weekly_target_id, user_id, goal_id, action_text, action_date
+              ) VALUES (
+                ${weeklyTarget.id},
+                ${user.id},
+                ${savedGoal.id},
+                ${actionText},
+                ${dateStr}
+              )
+            `;
+            totalActionsCreated++;
+          }
         }
+
+        savedTargets.push({
+          weekNumber: target.weekNumber,
+          weekStart: target.weekStart,
+          target: target.targetDescription,
+          dailyActionsCount: target.dailyActions.length,
+        });
       }
 
-      savedTargets.push({
-        weekNumber: target.weekNumber,
-        weekStart: target.weekStart,
-        target: target.targetDescription,
-        dailyActionsCount: target.dailyActions.length,
-      });
+      // Commit transaction
+      await sql`COMMIT`;
+    } catch (txError) {
+      // Rollback on any error
+      await sql`ROLLBACK`;
+      throw txError;
     }
 
     console.log('Plan approved and saved:', {
@@ -112,8 +125,9 @@ export async function POST(request: NextRequest) {
       totalActionsCreated,
     });
 
-    // Award points for creating a goal
-    let pointsAwarded = POINTS.LOG_ACTIVITY; // 5 points for creating a plan
+    // Award points for creating a goal (always award base points)
+    await awardPoints(user.id, POINTS.LOG_ACTIVITY, 'goal_created', savedGoal.id);
+    let pointsAwarded = POINTS.LOG_ACTIVITY;
     let badgeEarned = null;
 
     // Check if this is the user's first goal
@@ -128,7 +142,7 @@ export async function POST(request: NextRequest) {
         badgeEarned = badge.badge;
       }
       // Award bonus points for first goal
-      await awardPoints(user.id, POINTS.COMPLETE_ACTION, 'first_goal_created', savedGoal.id);
+      await awardPoints(user.id, POINTS.COMPLETE_ACTION, 'first_goal_bonus', savedGoal.id);
       pointsAwarded += POINTS.COMPLETE_ACTION;
     }
 

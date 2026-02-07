@@ -74,16 +74,21 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Action ID is required' }, { status: 400 });
     }
 
-    // Check if this is a new completion (not unchecking)
+    // Verify ownership first before any operation
     const [existing] = await sql`
       SELECT is_completed FROM daily_actions
       WHERE id = ${actionId} AND user_id = ${user.id}
     `;
 
-    const wasCompleted = existing?.is_completed || false;
+    // Return 404 early if action doesn't belong to user (prevents information leakage)
+    if (!existing) {
+      return NextResponse.json({ error: 'Action not found' }, { status: 404 });
+    }
+
+    const wasCompleted = existing.is_completed || false;
     const isNewCompletion = isCompleted && !wasCompleted;
 
-    const result = await sql`
+    const [a] = await sql`
       UPDATE daily_actions
       SET
         is_completed = ${isCompleted},
@@ -92,12 +97,6 @@ export async function PATCH(request: NextRequest) {
       WHERE id = ${actionId} AND user_id = ${user.id}
       RETURNING *
     `;
-
-    if (result.length === 0) {
-      return NextResponse.json({ error: 'Action not found' }, { status: 404 });
-    }
-
-    const a = result[0];
 
     // Award points and check for badges if newly completed
     let pointsAwarded = 0;

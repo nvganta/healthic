@@ -45,6 +45,7 @@ export default function TodayActions({ onActionComplete }: TodayActionsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const prevPercentageRef = useRef<number>(0);
 
   const fetchActions = useCallback(async () => {
@@ -65,6 +66,8 @@ export default function TodayActions({ onActionComplete }: TodayActionsProps) {
 
   const toggleAction = async (actionId: string, currentStatus: boolean) => {
     setUpdatingId(actionId);
+    setError(null);
+
     try {
       const res = await fetch('/api/daily-actions', {
         method: 'PATCH',
@@ -76,7 +79,7 @@ export default function TodayActions({ onActionComplete }: TodayActionsProps) {
       });
 
       if (res.ok) {
-        // Optimistically update local state
+        // Update local state after successful API response
         setData((prev) => {
           if (!prev) return prev;
           const newActions = prev.actions.map((a) =>
@@ -103,9 +106,17 @@ export default function TodayActions({ onActionComplete }: TodayActionsProps) {
           };
         });
         onActionComplete?.();
+      } else {
+        // Handle API error response
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.error || 'Failed to update action');
+        // Clear error after 3 seconds
+        setTimeout(() => setError(null), 3000);
       }
     } catch (err) {
       console.error('Failed to update action:', err);
+      setError('Network error. Please try again.');
+      setTimeout(() => setError(null), 3000);
     } finally {
       setUpdatingId(null);
     }
@@ -163,6 +174,15 @@ export default function TodayActions({ onActionComplete }: TodayActionsProps) {
     <>
       <Confetti active={showConfetti} />
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        {/* Error message */}
+        {error && (
+          <div className="p-3 bg-rose-50 border-b border-rose-100 text-rose-700 text-sm flex items-center gap-2">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {error}
+          </div>
+        )}
         <div className="p-6 border-b border-slate-100">
         <div className="flex items-center justify-between">
           <div>

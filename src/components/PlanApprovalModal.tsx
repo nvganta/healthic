@@ -114,18 +114,21 @@ export default function PlanApprovalModal({ isOpen, plan, onApprove, onReject }:
   };
 
   const handleAddAction = (weekIdx: number) => {
+    // Calculate index before state update, then apply both together
+    const newActionIdx = editedPlan.weeklyTargets[weekIdx].dailyActions.length;
+
     setEditedPlan(prev => {
       const newPlan = { ...prev };
       const newTargets = [...newPlan.weeklyTargets];
-      const newActions = [...newTargets[weekIdx].dailyActions, 'New action'];
+      const newActions = [...newTargets[weekIdx].dailyActions, ''];
       newTargets[weekIdx] = {
         ...newTargets[weekIdx],
         dailyActions: newActions,
       };
       return { ...newPlan, weeklyTargets: newTargets };
     });
-    // Auto-edit the new action
-    const newActionIdx = editedPlan.weeklyTargets[weekIdx].dailyActions.length;
+
+    // Auto-edit the new action (use pre-calculated index)
     setEditingAction({ weekIdx, actionIdx: newActionIdx });
     setEditValue('');
   };
