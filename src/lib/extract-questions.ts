@@ -22,15 +22,40 @@ export async function extractQuestionsFromResponse(agentResponse: string): Promi
       return null;
     }
 
-    const prompt = `Analyze this health coach response and extract any questions being asked to the user. For each question, generate exactly 2 short, common answer options that most people would pick from.
+    // Skip extraction if response is a plan/advice (contains action items, schedules, etc.)
+    const planIndicators = [
+      'here\'s your plan',
+      'here is your plan',
+      'your plan:',
+      'action plan',
+      'weekly plan',
+      'daily plan',
+      'step 1',
+      'week 1',
+      'day 1',
+      'monday:',
+      'schedule:',
+      'routine:',
+      'here\'s what i recommend',
+      'i recommend:',
+      'let\'s start with',
+    ];
+    const lowerResponse = agentResponse.toLowerCase();
+    if (planIndicators.some(indicator => lowerResponse.includes(indicator))) {
+      return null;
+    }
+
+    const prompt = `Analyze this health coach response and extract ONLY information-gathering questions. Do NOT extract confirmation questions asked after giving advice.
 
 Rules:
-- Only extract direct questions aimed at the user (ignore rhetorical questions)
-- Each question needs exactly 2 concise answer options (the UI adds an "Other" option automatically)
-- Options should be short (1-5 words) and represent the most common answers
-- If there are no real questions to the user, return hasQuestions: false
-- Generate a short title for the question panel (e.g., "Quick Questions", "Tell me more", "About your goals")
-- Maximum 5 questions
+- ONLY extract questions that gather NEW information (preferences, constraints, details)
+- DO NOT extract: "Does this work?", "Sound good?", "Ready to start?", "Any questions?" - these are confirmation questions
+- DO NOT extract questions if the response contains a plan, schedule, or actionable advice
+- Each question needs exactly 2 concise answer options (UI adds "Other" automatically)
+- Options should be short (1-5 words) and represent common answers
+- If the response is primarily advice/plan with a question at the end, return hasQuestions: false
+- Generate a short title for the question panel
+- Maximum 3 questions (fewer is better)
 
 Agent response:
 "${agentResponse.replace(/"/g, '\\"')}"

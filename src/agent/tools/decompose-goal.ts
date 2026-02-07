@@ -1,14 +1,12 @@
 import { FunctionTool } from '@google/adk';
 import { z } from 'zod';
-import { sql } from '@/lib/db';
 
 export const decomposeGoalTool = new FunctionTool({
   name: 'decompose_goal',
-  description: `Break down a saved goal into weekly targets and daily actions.
-Call this IMMEDIATELY after saving a goal to create an actionable plan.
-This calculates weekly milestones and suggests specific daily habits.`,
+  description: `Break down a proposed goal into weekly targets and daily actions.
+Call this IMMEDIATELY after proposing a goal with save_goal.
+The decomposition will be shown to the user for review and approval before saving.`,
   parameters: z.object({
-    goalId: z.string().describe('The ID of the goal to decompose (from save_goal response)'),
     weeklyTargets: z.array(
       z.object({
         weekNumber: z.number().describe('Week number (1, 2, 3, etc.)'),
@@ -21,49 +19,27 @@ This calculates weekly milestones and suggests specific daily habits.`,
   }),
   execute: async (params) => {
     try {
-      // Verify the goal exists
-      const goals = await sql`SELECT * FROM goals WHERE id = ${params.goalId}`;
-      if (goals.length === 0) {
-        return { success: false, message: 'Goal not found. Please save the goal first.' };
-      }
+      // Return the weekly targets as a proposal instead of saving directly
+      // The chat route will combine this with the goal proposal and show to user
+      const proposedWeeklyTargets = params.weeklyTargets.map((target) => ({
+        weekNumber: target.weekNumber,
+        weekStart: target.weekStart,
+        targetValue: target.targetValue,
+        targetDescription: target.targetDescription,
+        dailyActions: target.dailyActions,
+      }));
 
-      const goal = goals[0];
-
-      // Save each weekly target to the database
-      const savedTargets = [];
-      for (const target of params.weeklyTargets) {
-        await sql`
-          INSERT INTO weekly_targets (goal_id, week_start, target_value, notes)
-          VALUES (
-            ${params.goalId},
-            ${target.weekStart},
-            ${target.targetValue},
-            ${JSON.stringify({
-              weekNumber: target.weekNumber,
-              description: target.targetDescription,
-              dailyActions: target.dailyActions,
-            })}
-          )
-          RETURNING *
-        `;
-        savedTargets.push({
-          weekNumber: target.weekNumber,
-          weekStart: target.weekStart,
-          target: target.targetDescription,
-          dailyActions: target.dailyActions,
-        });
-      }
-
-      console.log('Goal decomposed:', savedTargets.length, 'weekly targets created');
+      console.log('Weekly targets proposed for approval:', proposedWeeklyTargets.length, 'weeks');
 
       return {
         success: true,
-        message: `Created ${savedTargets.length} weekly targets for "${goal.title}"`,
-        plan: savedTargets,
+        proposal: true,
+        proposedWeeklyTargets,
+        message: `I've created a ${proposedWeeklyTargets.length}-week plan. Please review and approve the plan to start tracking your progress.`,
       };
     } catch (error) {
-      console.error('Error decomposing goal:', error);
-      return { success: false, message: 'Failed to create weekly targets. Please try again.' };
+      console.error('Error preparing weekly targets proposal:', error);
+      return { success: false, message: 'Failed to create weekly breakdown. Please try again.' };
     }
   },
 });

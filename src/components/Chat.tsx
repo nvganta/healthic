@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ChoicesPanel from './ChoicesPanel';
+import PlanApprovalModal from './PlanApprovalModal';
+import { BadgeToastManager } from './BadgeToast';
 
 interface Message {
   id: string;
@@ -17,6 +19,33 @@ interface ChoicesData {
     question: string;
     options: string[];
   }>;
+}
+
+interface WeeklyTarget {
+  weekNumber: number;
+  weekStart: string;
+  targetValue: number;
+  targetDescription: string;
+  dailyActions: string[];
+}
+
+interface ProposedPlan {
+  goal: {
+    title: string;
+    description: string;
+    goalType: string;
+    targetValue?: number;
+    targetUnit?: string;
+    targetDate?: string;
+  };
+  weeklyTargets: WeeklyTarget[];
+}
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
 }
 
 interface ChatProps {
@@ -77,6 +106,8 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [activeChoices, setActiveChoices] = useState<ChoicesData | null>(null);
+  const [proposedPlan, setProposedPlan] = useState<ProposedPlan | null>(null);
+  const [earnedBadges, setEarnedBadges] = useState<Badge[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -172,7 +203,7 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
       const data = await response.json();
 
       if (response.ok) {
-        const assistantContent = data.response || 'No response';
+        const assistantContent = data.response || (data.toolCalls?.length > 0 ? 'Processing your request...' : 'No response received');
         setMessages((prev) => [
           ...prev,
           {
@@ -188,11 +219,16 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
         if (data.choicesData) {
           setActiveChoices(data.choicesData);
         }
+        // Handle plan proposal - show the approval modal
+        if (data.proposedPlan) {
+          setProposedPlan(data.proposedPlan);
+        }
         saveMessage('assistant', assistantContent, data.toolCalls);
       } else {
+        const errorMsg = data.error || data.details || 'Unknown error';
         setMessages((prev) => [
           ...prev,
-          { id: crypto.randomUUID(), role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
+          { id: crypto.randomUUID(), role: 'assistant', content: `Error: ${errorMsg}. Please try again.` },
         ]);
       }
     } catch {
@@ -230,6 +266,76 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
   const handleSuggestionClick = (suggestion: string) => {
     setInput(suggestion);
     textareaRef.current?.focus();
+  };
+
+  // Handle plan approval
+  const handlePlanApprove = async (plan: ProposedPlan) => {
+    try {
+      const response = await fetch('/api/plans/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(plan),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Add success message to chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Your plan has been saved! Created ${data.weeksCreated} weeks with ${data.totalActionsCreated} daily actions. Check your Dashboard to track your progress.`,
+          },
+        ]);
+
+        // Show badge if earned
+        if (data.gamification?.badgeEarned) {
+          setEarnedBadges((prev) => [...prev, data.gamification.badgeEarned]);
+        }
+
+        setProposedPlan(null);
+      } else {
+        console.error('Failed to approve plan:', data.error);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: `Failed to save plan: ${data.error}. Please try again.`,
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error('Error approving plan:', error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: 'Unable to save plan. Please check your connection and try again.',
+        },
+      ]);
+    }
+  };
+
+  // Handle plan rejection
+  const handlePlanReject = () => {
+    setProposedPlan(null);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: "No problem! The plan wasn't saved. Would you like me to create a different plan, or would you like to tell me more about what you're looking for?",
+      },
+    ]);
+  };
+
+  // Handle badge toast dismissal
+  const handleClearBadge = (badgeId: string) => {
+    setEarnedBadges((prev) => prev.filter((b) => b.id !== badgeId));
   };
 
   const suggestions = [
@@ -408,6 +514,19 @@ export default function Chat({ isNewChat = false, loadConversationId = null }: C
           />
         </>
       )}
+
+      {/* Plan Approval Modal */}
+      {proposedPlan && (
+        <PlanApprovalModal
+          isOpen={true}
+          plan={proposedPlan}
+          onApprove={handlePlanApprove}
+          onReject={handlePlanReject}
+        />
+      )}
+
+      {/* Badge Toast Notifications */}
+      <BadgeToastManager badges={earnedBadges} onClearBadge={handleClearBadge} />
     </div>
   );
 }
