@@ -9,9 +9,34 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(50),
   preferences JSONB DEFAULT '{}',
   tone_preference VARCHAR(50) DEFAULT 'balanced', -- 'tough_love', 'gentle', 'balanced'
+  -- Gamification fields
+  total_points INTEGER DEFAULT 0,
+  current_streak INTEGER DEFAULT 0,
+  longest_streak INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- User badges for gamification
+CREATE TABLE IF NOT EXISTS user_badges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  badge_id VARCHAR(50) NOT NULL,
+  earned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, badge_id)
+);
+
+-- Points history for tracking point gains
+CREATE TABLE IF NOT EXISTS points_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  points INTEGER NOT NULL,
+  reason VARCHAR(100) NOT NULL,
+  reference_id UUID,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS points_history_user_idx ON points_history(user_id, created_at DESC);
 
 -- Resolutions/Goals table
 CREATE TABLE IF NOT EXISTS goals (
@@ -38,6 +63,24 @@ CREATE TABLE IF NOT EXISTS weekly_targets (
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Daily actions for tracking individual tasks (normalized from weekly_targets.notes)
+CREATE TABLE IF NOT EXISTS daily_actions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  weekly_target_id UUID REFERENCES weekly_targets(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  goal_id UUID REFERENCES goals(id) ON DELETE CASCADE,
+  action_text TEXT NOT NULL,
+  action_date DATE NOT NULL,
+  is_completed BOOLEAN DEFAULT FALSE,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  notes TEXT, -- User notes on completion
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for querying today's actions
+CREATE INDEX IF NOT EXISTS daily_actions_user_date_idx ON daily_actions(user_id, action_date);
+CREATE INDEX IF NOT EXISTS daily_actions_goal_idx ON daily_actions(goal_id, action_date);
 
 -- Daily logs for tracking activities
 CREATE TABLE IF NOT EXISTS daily_logs (

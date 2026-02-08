@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import TodayActions from './TodayActions';
+import AnimatedCounter from './AnimatedCounter';
+import Tooltip from './Tooltip';
+import StreakFlame from './StreakFlame';
+import LevelProgress from './LevelProgress';
 
 interface GoalProgress {
   id: string;
@@ -41,6 +46,25 @@ interface DashboardData {
   portrait: { summary: string } | null;
 }
 
+interface GamificationData {
+  points: number;
+  level: {
+    level: number;
+    name: string;
+    progressToNext: number;
+    pointsToNext: number;
+    nextLevel?: { name: string } | null;
+  };
+  streak: {
+    current: number;
+    longest: number;
+  };
+  badges: {
+    earned: Array<{ id: string; name: string; icon: string; earnedAt: string }>;
+    unearned: Array<{ id: string; name: string; icon: string; description: string }>;
+  };
+}
+
 const goalTypeColors: Record<string, string> = {
   weight_loss: 'bg-rose-100 text-rose-700',
   exercise: 'bg-orange-100 text-orange-700',
@@ -74,12 +98,19 @@ interface DashboardProps {
 
 export default function Dashboard({ onGoToChat }: DashboardProps) {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [gamification, setGamification] = useState<GamificationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/dashboard')
-      .then((res) => res.json())
-      .then((d) => setData(d))
+    Promise.all([
+      fetch('/api/dashboard').then((res) => res.json()),
+      fetch('/api/gamification').then((res) => res.json()),
+    ])
+      .then(([dashboardData, gamificationData]) => {
+        setData(dashboardData);
+        setGamification(gamificationData);
+      })
       .catch(console.error)
       .finally(() => setIsLoading(false));
   }, []);
@@ -117,109 +148,236 @@ export default function Dashboard({ onGoToChat }: DashboardProps) {
     <div className="h-full overflow-y-auto bg-gradient-to-br from-slate-50 to-emerald-50/30">
       <div className="max-w-6xl mx-auto p-6 space-y-8">
         {/* Section 1 — Overview Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 stagger-fade">
+          <Tooltip content="Your currently active health goals" position="bottom">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:scale-[1.02] transition-all cursor-default">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-slate-500">Active Goals</span>
               </div>
-              <span className="text-sm font-medium text-slate-500">Active Goals</span>
+              <p className="text-3xl font-bold text-slate-800">
+                <AnimatedCounter value={overview.activeGoals} />
+              </p>
+              {overview.completedGoals > 0 && (
+                <p className="text-xs text-slate-400 mt-1">{overview.completedGoals} completed</p>
+              )}
             </div>
-            <p className="text-3xl font-bold text-slate-800">{overview.activeGoals}</p>
-            {overview.completedGoals > 0 && (
-              <p className="text-xs text-slate-400 mt-1">{overview.completedGoals} completed</p>
-            )}
-          </div>
+          </Tooltip>
 
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+          <Tooltip content={`${overview.activitiesLastWeek} activities last week`} position="bottom">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:scale-[1.02] transition-all cursor-default">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-slate-500">This Week</span>
               </div>
-              <span className="text-sm font-medium text-slate-500">This Week</span>
+              <p className="text-3xl font-bold text-slate-800">
+                <AnimatedCounter value={overview.activitiesThisWeek} />
+              </p>
+              <p className={`text-xs mt-1 ${activityDelta >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                {activityDelta >= 0 ? '+' : ''}{activityDelta} vs last week
+              </p>
             </div>
-            <p className="text-3xl font-bold text-slate-800">{overview.activitiesThisWeek}</p>
-            <p className={`text-xs mt-1 ${activityDelta >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-              {activityDelta >= 0 ? '+' : ''}{activityDelta} vs last week
-            </p>
-          </div>
+          </Tooltip>
 
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-                </svg>
+          <Tooltip content="Consecutive days with logged activities" position="bottom">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:scale-[1.02] transition-all cursor-default">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center ${overview.streak >= 3 ? 'animate-flame' : ''}`}>
+                  <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-slate-500">Streak</span>
               </div>
-              <span className="text-sm font-medium text-slate-500">Streak</span>
+              <p className="text-3xl font-bold text-slate-800">
+                <AnimatedCounter value={overview.streak} />
+              </p>
+              <p className="text-xs text-slate-400 mt-1">day{overview.streak !== 1 ? 's' : ''} in a row</p>
             </div>
-            <p className="text-3xl font-bold text-slate-800">{overview.streak}</p>
-            <p className="text-xs text-slate-400 mt-1">day{overview.streak !== 1 ? 's' : ''} in a row</p>
-          </div>
+          </Tooltip>
 
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
+          <Tooltip content="Total chats with your health coach" position="bottom">
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:scale-[1.02] transition-all cursor-default">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-medium text-slate-500">Conversations</span>
               </div>
-              <span className="text-sm font-medium text-slate-500">Conversations</span>
+              <p className="text-3xl font-bold text-slate-800">
+                <AnimatedCounter value={overview.conversations} />
+              </p>
+              <p className="text-xs text-slate-400 mt-1">with your coach</p>
             </div>
-            <p className="text-3xl font-bold text-slate-800">{overview.conversations}</p>
-            <p className="text-xs text-slate-400 mt-1">with your coach</p>
-          </div>
+          </Tooltip>
         </div>
 
-        {/* Section 2 — Goals Progress */}
-        {goals.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="p-6 border-b border-slate-100">
-              <h2 className="text-lg font-bold text-slate-800">Goals Progress</h2>
-              <p className="text-sm text-slate-400 mt-1">{goals.length} active goal{goals.length !== 1 ? 's' : ''}</p>
+        {/* Gamification Section */}
+        {gamification && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Level & Points Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="p-5">
+                <LevelProgress
+                  level={gamification.level.level}
+                  name={gamification.level.name}
+                  points={gamification.points}
+                  progressToNext={gamification.level.progressToNext}
+                  pointsToNext={gamification.level.pointsToNext}
+                  nextLevelName={gamification.level.nextLevel?.name}
+                />
+              </div>
             </div>
-            <div className="divide-y divide-slate-50">
-              {goals.map((goal) => (
-                <div key={goal.id} className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-slate-800">{goal.title}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${goalTypeColors[goal.goalType] || goalTypeColors.other}`}>
-                        {goal.goalType.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm font-medium text-slate-600">{goal.progressPercent}%</span>
-                      {goal.targetDate && (
-                        <p className="text-xs text-slate-400">
-                          by {new Date(goal.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${goalTypeProgressColors[goal.goalType] || goalTypeProgressColors.other}`}
-                      style={{ width: `${goal.progressPercent}%` }}
-                    />
-                  </div>
-                  {goal.currentWeek && (
-                    <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-                      <span>This week: {goal.currentWeek.actualValue ?? 0} / {goal.currentWeek.targetValue} {goal.targetUnit}</span>
-                      <span>{goal.totalWeeks} week{goal.totalWeeks !== 1 ? 's' : ''} planned</span>
-                    </div>
+
+            {/* Streak & Badges Card */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-slate-500 mb-3">Current Streak</h3>
+                  <StreakFlame streak={gamification.streak.current} size="lg" />
+                  {gamification.streak.longest > gamification.streak.current && (
+                    <p className="text-xs text-slate-400 mt-2">
+                      Best: {gamification.streak.longest} days
+                    </p>
                   )}
                 </div>
-              ))}
+                <div className="text-right">
+                  <h3 className="text-sm font-medium text-slate-500 mb-3">Badges Earned</h3>
+                  {gamification.badges.earned.length > 0 ? (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {gamification.badges.earned.slice(0, 5).map((badge) => (
+                        <Tooltip key={badge.id} content={badge.name} position="bottom">
+                          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-xl hover:scale-110 transition-transform cursor-default">
+                            {badge.icon}
+                          </div>
+                        </Tooltip>
+                      ))}
+                      {gamification.badges.earned.length > 5 && (
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-500">
+                          +{gamification.badges.earned.length - 5}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400">Complete actions to earn badges!</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Section 3 — Activity Breakdown */}
+        {/* Section 2 — Today's Actions (Accountability Widget) */}
+        <TodayActions />
+
+        {/* Section 3 — Goals Progress */}
+        {goals.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-800">Goals Progress</h2>
+              <p className="text-sm text-slate-400 mt-1">{goals.length} active goal{goals.length !== 1 ? 's' : ''} - Click to expand</p>
+            </div>
+            <div className="divide-y divide-slate-50">
+              {goals.map((goal) => {
+                const isExpanded = expandedGoalId === goal.id;
+                const notes = goal.currentWeek?.notes as Record<string, unknown> | null;
+                const dailyActions = (notes?.dailyActions as string[]) || [];
+                const description = (notes?.description as string) || '';
+                const progressColor = goal.progressPercent >= 80 ? 'text-emerald-600' :
+                                     goal.progressPercent >= 50 ? 'text-amber-600' : 'text-rose-500';
+
+                return (
+                  <div key={goal.id}>
+                    <button
+                      onClick={() => setExpandedGoalId(isExpanded ? null : goal.id)}
+                      className="w-full p-6 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <svg
+                            className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          <h3 className="font-semibold text-slate-800">{goal.title}</h3>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${goalTypeColors[goal.goalType] || goalTypeColors.other}`}>
+                            {goal.goalType.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-sm font-medium ${progressColor}`}>{goal.progressPercent}%</span>
+                          {goal.targetDate && (
+                            <p className="text-xs text-slate-400">
+                              by {new Date(goal.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${goalTypeProgressColors[goal.goalType] || goalTypeProgressColors.other}`}
+                          style={{ width: `${goal.progressPercent}%` }}
+                        />
+                      </div>
+                      {goal.currentWeek && (
+                        <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
+                          <span>This week: {goal.currentWeek.actualValue ?? 0} / {goal.currentWeek.targetValue} {goal.targetUnit}</span>
+                          <span>{goal.totalWeeks} week{goal.totalWeeks !== 1 ? 's' : ''} planned</span>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Expanded Details */}
+                    {isExpanded && goal.currentWeek && (
+                      <div className="px-6 pb-6 pt-2 bg-slate-50 animate-fade-in">
+                        <div className="ml-7">
+                          {description && (
+                            <p className="text-sm text-slate-600 mb-4 p-3 bg-white rounded-lg border border-slate-100">
+                              {description}
+                            </p>
+                          )}
+                          {dailyActions.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Daily Actions</p>
+                              <div className="space-y-2">
+                                {dailyActions.map((action, i) => (
+                                  <div key={i} className="flex items-start gap-2 p-2 bg-white rounded-lg border border-slate-100">
+                                    <svg className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                                    </svg>
+                                    <span className="text-sm text-slate-700">{action}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {!description && dailyActions.length === 0 && (
+                            <p className="text-sm text-slate-400 italic">No details available for this week</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Section 4 — Activity Breakdown */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-6 border-b border-slate-100">
             <h2 className="text-lg font-bold text-slate-800">Activity Breakdown</h2>
@@ -232,30 +390,37 @@ export default function Dashboard({ onGoToChat }: DashboardProps) {
                 <p className="text-sm text-slate-300 mt-1">Start logging activities to see your breakdown</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 stagger-fade">
                 {Object.entries(activityBreakdown)
                   .sort(([, a], [, b]) => b - a)
-                  .map(([type, count]) => {
+                  .map(([type, count], index) => {
                     const config = activityTypeConfig[type] || { icon: '📝', color: 'bg-slate-500', bg: 'bg-slate-50' };
                     const widthPercent = Math.round((count / maxActivityCount) * 100);
+                    const totalActivities = Object.values(activityBreakdown).reduce((a, b) => a + b, 0);
+                    const percentage = Math.round((count / totalActivities) * 100);
                     return (
-                      <div key={type} className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl ${config.bg} flex items-center justify-center text-lg flex-shrink-0`}>
-                          {config.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-slate-700 capitalize">{type}</span>
-                            <span className="text-sm font-semibold text-slate-800">{count}</span>
+                      <Tooltip key={type} content={`${count} ${type} activities (${percentage}% of total)`} position="right">
+                        <div className="flex items-center gap-4 hover:bg-slate-50 p-2 -mx-2 rounded-xl transition-colors cursor-default">
+                          <div className={`w-10 h-10 rounded-xl ${config.bg} flex items-center justify-center text-lg flex-shrink-0`}>
+                            {config.icon}
                           </div>
-                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${config.color}`}
-                              style={{ width: `${widthPercent}%` }}
-                            />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium text-slate-700 capitalize">{type}</span>
+                              <span className="text-sm font-semibold text-slate-800">{count}</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full animate-bar-grow ${config.color}`}
+                                style={{
+                                  width: `${widthPercent}%`,
+                                  animationDelay: `${index * 100}ms`,
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </Tooltip>
                     );
                   })}
               </div>
@@ -263,7 +428,7 @@ export default function Dashboard({ onGoToChat }: DashboardProps) {
           </div>
         </div>
 
-        {/* Section 4 — Weekly Plan */}
+        {/* Section 5 — Weekly Plan */}
         {goals.some((g) => g.currentWeek) && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100">
@@ -317,7 +482,7 @@ export default function Dashboard({ onGoToChat }: DashboardProps) {
           </div>
         )}
 
-        {/* Section 5 — Health Insights */}
+        {/* Section 6 — Health Insights */}
         {(patterns.length > 0 || portrait) && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="p-6 border-b border-slate-100">

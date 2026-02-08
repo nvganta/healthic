@@ -1,12 +1,42 @@
 import { FunctionTool } from '@google/adk';
 import { z } from 'zod';
-import { sql } from '@/lib/db';
-import { getOrCreateUser } from './user-helper';
+
+// Helper function to parse target date
+export function parseTargetDate(targetDateInput: string | undefined): string | null {
+  if (!targetDateInput) return null;
+
+  // Check if it's already a valid YYYY-MM-DD date
+  if (/^\d{4}-\d{2}-\d{2}$/.test(targetDateInput)) {
+    return targetDateInput;
+  }
+
+  // Try to parse relative date expressions
+  const now = new Date();
+  const lower = targetDateInput.toLowerCase();
+  const numMatch = lower.match(/(\d+)/);
+  const num = numMatch ? parseInt(numMatch[1]) : 1;
+
+  if (lower.includes('month')) {
+    now.setMonth(now.getMonth() + num);
+    return now.toISOString().split('T')[0];
+  } else if (lower.includes('week')) {
+    now.setDate(now.getDate() + num * 7);
+    return now.toISOString().split('T')[0];
+  } else if (lower.includes('day')) {
+    now.setDate(now.getDate() + num);
+    return now.toISOString().split('T')[0];
+  } else if (lower.includes('year')) {
+    now.setFullYear(now.getFullYear() + num);
+    return now.toISOString().split('T')[0];
+  }
+  // If we still can't parse it, return null rather than crashing
+  return null;
+}
 
 export const saveGoalTool = new FunctionTool({
   name: 'save_goal',
   description:
-    'Save a health resolution or goal for the user. Use this when the user tells you about a goal they want to achieve.',
+    'Propose a health goal for the user. The goal will be shown to the user for approval before being saved. Use this when the user tells you about a goal they want to achieve.',
   parameters: z.object({
     title: z.string().describe('Short title for the goal'),
     description: z.string().describe('Detailed description of the goal'),
@@ -22,61 +52,30 @@ export const saveGoalTool = new FunctionTool({
   }),
   execute: async (params) => {
     try {
-      const user = await getOrCreateUser();
+      const targetDate = parseTargetDate(params.targetDate);
 
-      // Parse targetDate - handle both YYYY-MM-DD and relative dates like "in 2 months"
-      let targetDate: string | null = null;
-      if (params.targetDate) {
-        // Check if it's already a valid YYYY-MM-DD date
-        if (/^\d{4}-\d{2}-\d{2}$/.test(params.targetDate)) {
-          targetDate = params.targetDate;
-        } else {
-          // Try to parse relative date expressions
-          const now = new Date();
-          const lower = params.targetDate.toLowerCase();
-          const numMatch = lower.match(/(\d+)/);
-          const num = numMatch ? parseInt(numMatch[1]) : 1;
+      // Return a proposal instead of saving directly
+      // The chat route will intercept this and show it to the user for approval
+      const proposedGoal = {
+        title: params.title,
+        description: params.description,
+        goalType: params.goalType,
+        targetValue: params.targetValue ?? null,
+        targetUnit: params.targetUnit ?? null,
+        targetDate: targetDate,
+      };
 
-          if (lower.includes('month')) {
-            now.setMonth(now.getMonth() + num);
-            targetDate = now.toISOString().split('T')[0];
-          } else if (lower.includes('week')) {
-            now.setDate(now.getDate() + num * 7);
-            targetDate = now.toISOString().split('T')[0];
-          } else if (lower.includes('day')) {
-            now.setDate(now.getDate() + num);
-            targetDate = now.toISOString().split('T')[0];
-          } else if (lower.includes('year')) {
-            now.setFullYear(now.getFullYear() + num);
-            targetDate = now.toISOString().split('T')[0];
-          }
-          // If we still can't parse it, leave as null rather than crashing
-        }
-      }
+      console.log('Goal proposed for approval:', proposedGoal);
 
-      const result = await sql`
-        INSERT INTO goals (user_id, title, description, goal_type, target_value, target_unit, target_date)
-        VALUES (
-          ${user.id},
-          ${params.title},
-          ${params.description},
-          ${params.goalType},
-          ${params.targetValue ?? null},
-          ${params.targetUnit ?? null},
-          ${targetDate}
-        )
-        RETURNING *
-      `;
-
-      console.log('Goal saved:', result[0]);
       return {
         success: true,
-        goalId: result[0].id,
-        message: `Goal "${params.title}" has been saved. I'll help you break this down into actionable steps.`,
+        proposal: true,
+        proposedGoal,
+        message: `I've prepared your goal "${params.title}". Now I'll create a weekly breakdown for you to review before saving.`,
       };
     } catch (error) {
-      console.error('Error saving goal:', error);
-      return { success: false, message: 'Failed to save goal. Please try again.' };
+      console.error('Error preparing goal proposal:', error);
+      return { success: false, message: 'Failed to prepare goal. Please try again.' };
     }
   },
 });

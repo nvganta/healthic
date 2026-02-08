@@ -55,6 +55,18 @@ export async function getConversationHistory(conversationId: string, limit: numb
 }
 
 /**
+ * Count user messages in a conversation (for exchange tracking).
+ */
+export async function countUserMessages(conversationId: string): Promise<number> {
+  const result = await sql`
+    SELECT COUNT(*) as count
+    FROM messages
+    WHERE conversation_id = ${conversationId}::uuid AND role = 'user'
+  `;
+  return parseInt(result[0]?.count || '0', 10);
+}
+
+/**
  * Get all conversations for a user.
  */
 export async function getUserConversations(userId: string, limit: number = 10) {

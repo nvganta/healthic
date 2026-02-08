@@ -1,47 +1,174 @@
 # Healthic
 
-A health agent that actually helps you stick to your goals.
+An emotionally intelligent health coach that actually helps you stick to your goals.
 
+Built for the [Comet Resolution Hackathon](https://www.encodeclub.com/programmes/comet-resolution-v2-hackathon) | Targeting: **Best Use of Opik** & **Health, Fitness & Wellness**
 
-Healthic is an AI-powered health coach built for the [Comet Resolution Hackathon](https://www.encodeclub.com/programmes/comet-resolution-v2-hackathon). Unlike passive fitness trackers that wait for you to log data, Healthic actively coaches you through your health resolutions.
+## The Problem
 
+Most health apps are passive trackers that wait for you to log data. They don't coach you, they don't adapt when you struggle, and they definitely don't know when to push harder or ease up.
 
-Healthic solves this by being an active coach rather than a passive tracker. It checks in at the right moments, gives specific actionable advice, and adapts the plan when something is not working.
+**Healthic is different.** It's an active coach that:
+- Gives you a personalized plan immediately (no endless questionnaires)
+- Asks smart questions only when needed
+- Tracks your progress and adapts the plan when something isn't working
+- Knows your tone preferences (tough love vs gentle encouragement)
 
-## Tech stack
+## Key Features
 
-- **Google Agent Development Kit (ADK)** - The agent framework that handles reasoning, multi-turn conversations, and state management
-- **Gemini** - The LLM powering the agent's intelligence
-- **Opik** - Tracing and evaluation platform from Comet for observability and automated evals
-- **Neon** - Serverless Postgres with pgvector for user data and semantic search
-- **Next.js** - Frontend and API routes
-- **Vercel** - Deployment
+### Smart Conversation Flow
+The agent intelligently decides when to ask questions vs give a plan:
+- **Specific goal + timeline?** → Immediate actionable plan
+- **Vague request?** → 1-2 clarifying questions, then plan
+- **Never** endless question loops
 
-## The eval story
+### Real-time Evaluations with Opik
+Every response is automatically evaluated across multiple dimensions:
 
-This project is built with evaluation at its core. Every decision the agent makes gets traced through Opik, so we can actually measure whether the agent is doing a good job.
+| Evaluation | What it measures |
+|------------|------------------|
+| **Actionability** | Is the advice specific and actionable? |
+| **Safety** | Does it avoid dangerous recommendations? |
+| **Personalization** | Does it consider user's preferences and constraints? |
+| **Goal Decomposition** | Are weekly targets realistic and progressive? |
+| **Question Quality** | Are clarifying questions focused and useful? |
 
-We evaluate things like:
-- Was the check-in timing appropriate?
-- Did the agent pick the right tone?
-- Was the advice specific and actionable?
-- Did the agent use the context it retrieved?
-- Did the agent handle sensitive topics appropriately?
+### Full Observability
+All agent interactions are traced through **Opik**, including:
+- User input and agent responses
+- Tool calls (goal saving, activity logging, pattern detection)
+- Evaluation scores for every response
+- Session and conversation tracking
 
-## Roadmap
+### Adaptive Planning
+- Breaks goals into weekly targets with daily actions
+- Detects patterns in your behavior
+- Adjusts plans based on what's working (or not)
 
-### LLM-as-Judge for Goal Decomposition
+## Opik Integration
 
-Currently, when a user sets a goal, the agent (Gemini) decomposes it into weekly targets and daily actions. This decomposition is stored directly without any validation — there's no check that weekly targets sum correctly, that pacing is progressive, or that the plan is safe and realistic.
+This project showcases deep Opik integration for LLM observability:
 
-The proposed improvement is to add a second LLM call that acts as a judge, similar to how we already use LLM-as-judge for our Opik evaluations (actionability, safety, personalization). After the agent generates a decomposed plan but before it gets saved to the database, a reviewer LLM would evaluate the plan against criteria like:
+```
+User Message → Opik Trace Created
+    ↓
+Agent Processing → Tool Call Spans Logged
+    ↓
+Response Generated → Async Evaluations Triggered
+    ↓
+Evals Complete → Scores Logged to Opik
+```
 
-- **Mathematical consistency** — Do weekly target values sum to the overall goal target?
-- **Progressive pacing** — Does intensity build gradually rather than front-loading?
-- **Safety** — Are daily actions realistic and not dangerous (e.g., no extreme calorie restriction, no overtraining for beginners)?
-- **Completeness** — Does every week have daily actions? Are there gaps?
-- **Realism** — Is the timeline feasible for the goal type?
+**What gets traced:**
+- Every chat request with full context (user ID, session ID, conversation ID)
+- Agent execution spans with model metadata
+- Individual tool calls with arguments
+- Evaluation results (actionability, safety, personalization scores)
+- Error states and recovery
 
-If the plan fails review, the tool would return an error to the agent with specific feedback, prompting it to regenerate a better plan. This creates a self-correcting loop without requiring human intervention.
+**Built-in Evals Dashboard:**
+The app includes an in-app evals dashboard that shows real-time quality metrics, with a direct link to the full Opik dashboard for deeper analysis.
 
-This mirrors the eval pipeline we already have for chat responses, extending the same LLM-as-judge pattern to plan generation.
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Agent Framework | Google Agent Development Kit (ADK) |
+| LLM | Gemini 2.0 Flash |
+| Observability | **Opik** (tracing + evaluations) |
+| Database | Neon (Serverless Postgres + pgvector) |
+| Frontend | Next.js 15 + Tailwind CSS |
+| Deployment | Vercel |
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- Neon database (or any Postgres)
+- Google AI API key (for Gemini)
+- Opik account (for tracing)
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/nvganta/healthic.git
+cd healthic
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
+
+Required variables:
+```
+DATABASE_URL=your_neon_connection_string
+GOOGLE_GENAI_API_KEY=your_gemini_api_key
+OPIK_API_KEY=your_opik_api_key
+OPIK_WORKSPACE=your_opik_workspace
+```
+
+4. Run database migrations:
+```bash
+npm run db:migrate
+```
+
+5. Start the development server:
+```bash
+npm run dev
+```
+
+Visit `http://localhost:3000` to start chatting with your health coach.
+
+## Project Structure
+
+```
+src/
+├── agent/
+│   ├── health-agent.ts    # Main agent definition with system prompt
+│   └── tools/             # Agent tools (goals, activities, patterns)
+├── app/
+│   ├── api/
+│   │   ├── chat/          # Main chat endpoint with Opik tracing
+│   │   └── evals/         # Evaluations API
+│   └── page.tsx           # Main UI
+├── components/
+│   ├── Chat.tsx           # Chat interface
+│   └── EvalsDashboard.tsx # In-app evals viewer
+└── lib/
+    ├── evals/             # LLM-as-judge evaluators
+    └── opik.ts            # Opik client configuration
+```
+
+## Demo
+
+Try these prompts to see the agent in action:
+
+1. **Specific goal (immediate plan):**
+   > "I want to lose 15 pounds in 2 months"
+
+2. **Vague goal (asks 1-2 questions first):**
+   > "Help me get healthier"
+
+3. **Goal with constraints (personalized plan):**
+   > "I want to exercise more but I have bad knees"
+
+## Future Improvements
+
+- **LLM-as-Judge for Goal Decomposition**: Add a reviewer LLM to validate that decomposed plans are mathematically consistent, progressively paced, and safe before saving
+- **Proactive Check-ins**: Schedule smart notifications based on learned optimal timing
+- **Multi-modal Input**: Support photo logging for meals and exercises
+
+## License
+
+MIT
+
+---
+
+Built with Opik for the Comet Resolution Hackathon

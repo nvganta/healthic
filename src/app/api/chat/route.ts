@@ -11,8 +11,9 @@ import { extractAndSavePreferences, getUserPreferences } from '@/lib/extract-pre
 import { evaluateGoalDecomposition } from '@/lib/evals/goal-decomposition';
 import { evaluateQuestionQuality } from '@/lib/evals/question-quality';
 import { extractQuestionsFromResponse } from '@/lib/extract-questions';
-import { getOrCreateConversation, saveMessage } from '@/agent/tools/conversation-helpers';
+import { getOrCreateConversation, saveMessage, countUserMessages } from '@/agent/tools/conversation-helpers';
 import { getOrCreateUser } from '@/agent/tools/user-helper';
+import { parseTargetDate } from '@/agent/tools/save-goal';
 
 const APP_NAME = 'healthic';
 const runner = new InMemoryRunner({ agent: healthAgent, appName: APP_NAME });
@@ -104,9 +105,13 @@ export async function POST(request: NextRequest) {
     // since InMemoryRunner already maintains session conversation state
     await saveMessage(conversation.id, 'user', message);
 
+    // Count exchanges to determine if we should force plan mode
+    const userMessageCount = await countUserMessages(conversation.id);
+    const shouldForcePlanMode = userMessageCount >= 2;
+
     // Update trace with validated input
     trace.update({
-      input: { message, userId, sessionId, conversationId: conversation.id },
+      input: { message, userId, sessionId, conversationId: conversation.id, userMessageCount, planMode: shouldForcePlanMode },
     });
 
     // Create or get session
@@ -126,8 +131,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Create user content - ADK session maintains conversation history, no need to inject
-    const userContent = createUserContent(message);
+    // Create user content - inject plan mode directive if needed
+    let messageToSend = message;
+    if (shouldForcePlanMode) {
+      messageToSend = `[SYSTEM DIRECTIVE: This is exchange #${userMessageCount}. You MUST now provide a concrete action plan. DO NOT ask more questions. Give specific, actionable advice based on the information you have.]\n\n${message}`;
+    }
+    const userContent = createUserContent(messageToSend);
 
     // Create span for agent execution
     const agentSpan = trace.span({
@@ -261,10 +270,14 @@ export async function POST(request: NextRequest) {
     extractAndSavePreferences(message, userId).catch(console.error);
 
     // Extract choicesData: first check if agent used present_choices tool
+    // IMPORTANT: Skip question extraction if in plan mode (after 2 exchanges)
     const choicesCall = toolCalls.find((tc) => tc.name === 'present_choices');
     let choicesData;
 
-    if (choicesCall) {
+    if (shouldForcePlanMode) {
+      // In plan mode - don't show questions, agent should be giving advice
+      choicesData = undefined;
+    } else if (choicesCall) {
       choicesData = {
         title: (choicesCall.args as Record<string, unknown>).title as string,
         questions: ((choicesCall.args as Record<string, unknown>).questions as Array<{
@@ -305,12 +318,52 @@ export async function POST(request: NextRequest) {
       }).catch(console.error);
     }
 
+    // Check if this response contains a plan proposal (save_goal + decompose_goal both called)
+    // Look for proposal data in tool call args and apply same normalization as tools
+    let proposedPlan = null;
+    if (saveGoalCall && decomposeCall) {
+      const goalArgs = saveGoalCall.args as Record<string, unknown>;
+      const decomposeArgs = decomposeCall.args as Record<string, unknown>;
+
+      // Check if these are proposal mode calls
+      // Apply the same normalization that save_goal tool does (e.g., parseTargetDate for relative dates)
+      if (goalArgs && decomposeArgs.weeklyTargets) {
+        // Normalize targetDate using the same logic as save_goal tool
+        const normalizedTargetDate = parseTargetDate(goalArgs.targetDate as string | undefined);
+
+        proposedPlan = {
+          goal: {
+            title: goalArgs.title as string,
+            description: goalArgs.description as string,
+            goalType: goalArgs.goalType as string,
+            targetValue: goalArgs.targetValue as number | undefined,
+            targetUnit: goalArgs.targetUnit as string | undefined,
+            targetDate: normalizedTargetDate ?? undefined,
+          },
+          weeklyTargets: decomposeArgs.weeklyTargets as Array<{
+            weekNumber: number;
+            weekStart: string;
+            targetValue: number;
+            targetDescription: string;
+            dailyActions: string[];
+          }>,
+        };
+        console.log('📋 Plan proposal detected:', {
+          goal: proposedPlan.goal.title,
+          weeks: proposedPlan.weeklyTargets.length,
+        });
+      }
+    }
+
     return NextResponse.json({
       response: responseText,
       sessionId: session.id,
       conversationId: conversation.id,
       toolCalls,
       choicesData,
+      proposedPlan,
+      planMode: shouldForcePlanMode,
+      exchangeCount: userMessageCount,
     });
   } catch (error) {
     console.error('Chat error:', error);
