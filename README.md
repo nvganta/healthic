@@ -4,6 +4,8 @@ An emotionally intelligent health coach that actually helps you stick to your go
 
 Built for the [Comet Resolution Hackathon](https://www.encodeclub.com/programmes/comet-resolution-v2-hackathon) | Targeting: **Best Use of Opik** & **Health, Fitness & Wellness**
 
+**[Live Demo →](https://healthic.vercel.app)**
+
 ## The Problem
 
 Most health apps are passive trackers that wait for you to log data. They don't coach you, they don't adapt when you struggle, and they definitely don't know when to push harder or ease up.
@@ -15,6 +17,28 @@ Most health apps are passive trackers that wait for you to log data. They don't 
 - Knows your tone preferences (tough love vs gentle encouragement)
 
 ## Key Features
+
+### Plan Approval Modal
+When the agent creates a plan, you get to **review and edit it before saving**:
+- See weekly breakdown with specific targets
+- Edit, add, or remove daily actions
+- Approve or reject the plan
+- Full control over your health journey
+
+### Gamification System
+Stay motivated with points, levels, and badges:
+- **Points** for completing actions, logging activities, hitting streaks
+- **7 Levels** from Beginner to Wellness Master
+- **Badges** for milestones (First Steps, Week Warrior, Perfect Week, etc.)
+- **Streak tracking** with animated flame display
+
+### Interactive Dashboard
+Beautiful, animated dashboard with:
+- Animated counters that count up on load
+- Progress rings for daily completion
+- Confetti celebration when you complete all daily actions
+- Goal cards with visual progress indicators
+- Real-time stats (streak, points, level)
 
 ### Smart Conversation Flow
 The agent intelligently decides when to ask questions vs give a plan:
@@ -136,13 +160,23 @@ src/
 ├── app/
 │   ├── api/
 │   │   ├── chat/          # Main chat endpoint with Opik tracing
+│   │   ├── daily-actions/ # Daily action completion API
+│   │   ├── gamification/  # Points, levels, badges API
+│   │   ├── plans/approve/ # Plan approval endpoint
 │   │   └── evals/         # Evaluations API
 │   └── page.tsx           # Main UI
 ├── components/
-│   ├── Chat.tsx           # Chat interface
+│   ├── Chat.tsx           # Chat interface with plan approval
+│   ├── Dashboard.tsx      # Interactive dashboard with animations
+│   ├── TodayActions.tsx   # Daily actions with confetti
+│   ├── PlanApprovalModal.tsx  # Editable plan review modal
+│   ├── LevelProgress.tsx  # XP bar component
+│   ├── StreakFlame.tsx    # Animated streak display
+│   ├── BadgeToast.tsx     # Badge earned notifications
 │   └── EvalsDashboard.tsx # In-app evals viewer
 └── lib/
     ├── evals/             # LLM-as-judge evaluators
+    ├── gamification.ts    # Points, levels, badges logic
     └── opik.ts            # Opik client configuration
 ```
 
