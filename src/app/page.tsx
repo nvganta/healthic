@@ -218,6 +218,16 @@ export default function Home() {
             <Chat key={chatKey} isNewChat={isNewChat} loadConversationId={activeConversationId} />
           )}
         </main>
+
+        {/* Medical Disclaimer */}
+        <footer className="px-4 py-2 text-center text-xs text-slate-400 border-t border-slate-100 bg-slate-50/50">
+          <span className="inline-flex items-center gap-1">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Not medical advice. Consult a healthcare professional before starting any health program.
+          </span>
+        </footer>
       </div>
 
       {/* Modals */}
